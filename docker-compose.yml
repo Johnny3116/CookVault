@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cookvault
+      POSTGRES_PASSWORD: cookvault
+      POSTGRES_DB: cookvault
+    volumes:
+      - cookvault_pgdata:/var/lib/postgresql/data
+    networks:
+      - cookvault
+    # Intentionally not exposed to the host: NexusBody's port sweep found 5432
+    # already in use by another container. Backend reaches this over the
+    # compose network at postgres:5432.
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://cookvault:cookvault@postgres:5432/cookvault
+    depends_on:
+      - postgres
+    ports:
+      - "8420:8000"
+    networks:
+      - cookvault
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked in at build time (Next.js NEXT_PUBLIC_ constraint) -- this is
+        # resolved by whatever device's browser is viewing the page, not by
+        # the Docker host. localhost is only correct when viewing from the
+        # same machine running compose. On NexusBody, set
+        # COOKVAULT_PUBLIC_API_URL in .env to the Tailscale address before
+        # building (e.g. https://nexusbody.tail344870.ts.net:8420), or the
+        # frontend will try to reach the backend on the viewer's own device.
+        NEXT_PUBLIC_API_URL: ${COOKVAULT_PUBLIC_API_URL:-http://localhost:8420}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3420:3420"
+    networks:
+      - cookvault
+
+networks:
+  cookvault:
+
+volumes:
+  cookvault_pgdata:
