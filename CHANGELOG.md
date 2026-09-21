@@ -11,6 +11,18 @@ dates are commit dates rather than release dates.
 
 ### Added
 
+- GitHub Actions CI (`.github/workflows/ci.yml`) running on every pull request
+  and every push to `main`: the backend job applies the migrations, reverses
+  them to base and reapplies them, runs `alembic check` for model drift and
+  runs the test suite against a real Postgres service container; the frontend
+  job typechecks and builds; a third job builds both Docker images, since a
+  Dockerfile that no longer builds is a broken deploy even when the app code
+  is fine.
+- Backend test suite (`backend/tests/`, 32 tests) covering recipe CRUD,
+  ingredient ordering, `PUT` replacement, partial `PATCH` on children, the
+  password gate, shopping lists, meal planning and the Phase 2 stubs. Each
+  test that exists for a previously-fixed bug was checked by reintroducing
+  that bug and confirming the test goes red.
 - Recipes can be edited, deleted and favorited from the UI. Previously the
   frontend could only create and read, so correcting a typo meant reaching for
   `curl`.

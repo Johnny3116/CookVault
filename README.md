@@ -29,8 +29,8 @@ request/response JSON contract hasn't been verified yet — see
 - The calendar shows the current week only; there's no previous/next navigation.
 - Library filtering is favorite-only, though the API also supports filtering by
   tag.
-- **There is no automated test suite and no CI.** Nothing catches a broken build
-  or a bad migration except noticing at deploy time.
+- The frontend has no tests of its own; CI typechecks and builds it, but nothing
+  exercises the pages.
 
 ## Stack
 
@@ -111,6 +111,39 @@ docker compose exec backend alembic check          # should report no drift
 
 Declare indexes on the model (via `__table_args__`) as well as in the migration,
 or autogenerate will see them as drift and propose dropping them.
+
+### Running the tests
+
+The backend suite runs against a real PostgreSQL database rather than SQLite,
+because the models use Postgres-specific types (UUID, ARRAY, native ENUM) that
+SQLite would not exercise. Point `DATABASE_URL` at a throwaway database — never
+the one holding your recipes, since the suite truncates tables between tests:
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+DATABASE_URL=postgresql+psycopg://cookvault:cookvault@localhost:5432/cookvault pytest
+```
+
+Against the Compose stack, the simplest throwaway database is a second one on
+the same server:
+
+```bash
+docker compose exec postgres createdb -U cookvault cookvault_test
+docker compose exec -e DATABASE_URL=postgresql+psycopg://cookvault:cookvault@postgres:5432/cookvault_test \
+  backend sh -c "pip install -q -r requirements-dev.txt && pytest"
+```
+
+## CI
+
+[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) runs on every pull
+request and every push to `main`:
+
+| Job | What it catches |
+|---|---|
+| **backend** | Migrations that fail to apply or to reverse, models that drifted from their migration (`alembic check`), and API regressions (`pytest`) |
+| **frontend** | Type errors (`tsc --noEmit`), build failures, and a `package.json`/lockfile mismatch (`npm ci`) |
+| **images** | A Dockerfile that no longer builds — a broken deploy even when the app code is fine |
 
 ## Deploying on NexusBody
 
