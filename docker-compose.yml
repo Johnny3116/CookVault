@@ -8,6 +8,14 @@ services:
       POSTGRES_DB: cookvault
     volumes:
       - cookvault_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # The backend runs migrations at boot, so it must not start until
+      # Postgres is actually accepting connections -- not merely running.
+      test: ["CMD-SHELL", "pg_isready -U cookvault -d cookvault"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     networks:
       - cookvault
     # Intentionally not exposed to the host: NexusBody's port sweep found 5432
@@ -22,30 +30,28 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://cookvault:cookvault@postgres:5432/cookvault
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
-      # Loopback-only, matching every other service on this host -- fronted
-      # externally via `tailscale serve`, never bound to 0.0.0.0.
+      # Loopback-only, and optional: the frontend proxies /api/* to the backend
+      # over the compose network, so nothing outside the host needs this. Kept
+      # for direct API poking and the interactive docs at /docs.
       - "127.0.0.1:8420:8000"
     networks:
       - cookvault
 
   frontend:
-    build:
-      context: ./frontend
-      args:
-        # Baked in at build time (Next.js NEXT_PUBLIC_ constraint) -- this is
-        # resolved by whatever device's browser is viewing the page, not by
-        # the Docker host. localhost is only correct when viewing from the
-        # same machine running compose. On NexusBody, set
-        # COOKVAULT_PUBLIC_API_URL in .env to the Tailscale address before
-        # building (e.g. https://nexusbody.tail344870.ts.net:8420), or the
-        # frontend will try to reach the backend on the viewer's own device.
-        NEXT_PUBLIC_API_URL: ${COOKVAULT_PUBLIC_API_URL:-http://localhost:8420}
+    build: ./frontend
     restart: unless-stopped
+    environment:
+      # Server-side only -- the browser never sees this and never talks to the
+      # backend directly, so there's nothing to bake in at build time and no
+      # rebuild needed when the deployment address changes.
+      BACKEND_ORIGIN: http://backend:8000
     depends_on:
       - backend
     ports:
+      # The only port that needs `tailscale serve`.
       - "127.0.0.1:3420:3420"
     networks:
       - cookvault

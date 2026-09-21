@@ -15,7 +15,10 @@ class Settings(BaseSettings):
     agent_zero_base_url: str | None = None
     agent_zero_api_key: str | None = None
 
-    cors_origins: list[str] = ["http://localhost:3420"]
+    # Normally empty: the frontend proxies /api/* to the backend from its own
+    # origin, so browser requests are same-origin and CORS never applies. Only
+    # needed if you point a browser straight at the backend's port.
+    cors_origins: list[str] = []
 
 
 settings = Settings()

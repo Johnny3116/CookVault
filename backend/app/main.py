@@ -6,13 +6,15 @@ from app.routers import alternates, auth, finder, import_, ingredients, meal_pla
 
 app = FastAPI(title="CookVault", version="0.1.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Only mounted when explicitly configured -- see Settings.cors_origins.
+if settings.cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 app.include_router(auth.router)
 app.include_router(recipes.router)

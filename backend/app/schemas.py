@@ -20,10 +20,21 @@ class IngredientCreate(IngredientBase):
     pass
 
 
+class IngredientUpdate(BaseModel):
+    """Every field optional -- this is what makes PATCH actually partial."""
+
+    name: str | None = None
+    quantity: Decimal | None = None
+    unit: str | None = None
+    category: IngredientCategory | None = None
+    position: int | None = None
+
+
 class IngredientRead(IngredientBase):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     recipe_id: uuid.UUID
+    position: int
 
 
 class StepBase(BaseModel):
@@ -36,6 +47,16 @@ class StepBase(BaseModel):
 
 class StepCreate(StepBase):
     pass
+
+
+class StepUpdate(BaseModel):
+    """Every field optional -- this is what makes PATCH actually partial."""
+
+    order: int | None = None
+    instruction_text: str | None = None
+    temperature: str | None = None
+    duration: str | None = None
+    notes: str | None = None
 
 
 class StepRead(StepBase):
@@ -53,6 +74,15 @@ class AlternateBase(BaseModel):
 
 class AlternateCreate(AlternateBase):
     pass
+
+
+class AlternateUpdate(BaseModel):
+    """Every field optional -- this is what makes PATCH actually partial."""
+
+    type: AlternateType | None = None
+    original_value: str | None = None
+    alternate_value: str | None = None
+    notes: str | None = None
 
 
 class AlternateRead(AlternateBase):
@@ -91,6 +121,10 @@ class RecipeUpdate(BaseModel):
     estimated_cost: Decimal | None = None
     tags: list[str] | None = None
     is_favorite: bool | None = None
+
+
+class RecipeReplace(RecipeCreate):
+    """Body for PUT /recipes/{id} -- replaces the recipe and all its children."""
 
 
 class RecipeSummary(RecipeBase):

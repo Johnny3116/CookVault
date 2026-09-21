@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -22,13 +23,24 @@ def _get_recipe_or_404(recipe_id: uuid.UUID, db: Session) -> models.Recipe:
 @router.get("", response_model=list[schemas.IngredientRead])
 def list_ingredients(recipe_id: uuid.UUID, db: Session = Depends(get_db)):
     _get_recipe_or_404(recipe_id, db)
-    return db.query(models.Ingredient).filter(models.Ingredient.recipe_id == recipe_id).all()
+    return (
+        db.query(models.Ingredient)
+        .filter(models.Ingredient.recipe_id == recipe_id)
+        .order_by(models.Ingredient.position)
+        .all()
+    )
 
 
 @router.post("", response_model=schemas.IngredientRead, status_code=status.HTTP_201_CREATED)
 def add_ingredient(recipe_id: uuid.UUID, payload: schemas.IngredientCreate, db: Session = Depends(get_db)):
     _get_recipe_or_404(recipe_id, db)
-    ingredient = models.Ingredient(recipe_id=recipe_id, **payload.model_dump())
+    # Append after whatever is already there rather than colliding on position 0.
+    next_position = (
+        db.query(func.coalesce(func.max(models.Ingredient.position) + 1, 0))
+        .filter(models.Ingredient.recipe_id == recipe_id)
+        .scalar()
+    )
+    ingredient = models.Ingredient(recipe_id=recipe_id, position=next_position, **payload.model_dump())
     db.add(ingredient)
     db.commit()
     db.refresh(ingredient)
@@ -39,7 +51,7 @@ def add_ingredient(recipe_id: uuid.UUID, payload: schemas.IngredientCreate, db: 
 def update_ingredient(
     recipe_id: uuid.UUID,
     ingredient_id: uuid.UUID,
-    payload: schemas.IngredientBase,
+    payload: schemas.IngredientUpdate,
     db: Session = Depends(get_db),
 ):
     ingredient = db.get(models.Ingredient, ingredient_id)

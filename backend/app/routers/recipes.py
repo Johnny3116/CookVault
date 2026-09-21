@@ -33,13 +33,21 @@ def list_recipes(
     return db.execute(stmt).scalars().all()
 
 
+def _apply_children(recipe: models.Recipe, payload: schemas.RecipeCreate) -> None:
+    """Set the recipe's children from the payload, preserving submitted order."""
+    recipe.ingredients = [
+        models.Ingredient(position=index, **ingredient.model_dump())
+        for index, ingredient in enumerate(payload.ingredients)
+    ]
+    recipe.steps = [models.Step(**step.model_dump()) for step in payload.steps]
+    recipe.alternates = [models.Alternate(**alt.model_dump()) for alt in payload.alternates]
+
+
 @router.post("", response_model=schemas.RecipeDetail, status_code=status.HTTP_201_CREATED)
 def create_recipe(payload: schemas.RecipeCreate, db: Session = Depends(get_db)):
     data = payload.model_dump(exclude={"ingredients", "steps", "alternates"})
     recipe = models.Recipe(**data)
-    recipe.ingredients = [models.Ingredient(**i.model_dump()) for i in payload.ingredients]
-    recipe.steps = [models.Step(**s.model_dump()) for s in payload.steps]
-    recipe.alternates = [models.Alternate(**a.model_dump()) for a in payload.alternates]
+    _apply_children(recipe, payload)
     db.add(recipe)
     db.commit()
     db.refresh(recipe)
@@ -56,6 +64,22 @@ def update_recipe(recipe_id: uuid.UUID, payload: schemas.RecipeUpdate, db: Sessi
     recipe = _get_recipe_or_404(recipe_id, db)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(recipe, field, value)
+    db.commit()
+    db.refresh(recipe)
+    return recipe
+
+
+@router.put("/{recipe_id}", response_model=schemas.RecipeDetail)
+def replace_recipe(recipe_id: uuid.UUID, payload: schemas.RecipeReplace, db: Session = Depends(get_db)):
+    """Replace a recipe and all its children in one call.
+
+    The edit form submits the whole recipe, so replacing wholesale avoids making
+    the client diff children against per-child endpoints.
+    """
+    recipe = _get_recipe_or_404(recipe_id, db)
+    for field, value in payload.model_dump(exclude={"ingredients", "steps", "alternates"}).items():
+        setattr(recipe, field, value)
+    _apply_children(recipe, payload)
     db.commit()
     db.refresh(recipe)
     return recipe

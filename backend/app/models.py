@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -69,7 +70,7 @@ class Recipe(Base):
     )
 
     ingredients: Mapped[list[Ingredient]] = relationship(
-        back_populates="recipe", cascade="all, delete-orphan", order_by="Ingredient.id"
+        back_populates="recipe", cascade="all, delete-orphan", order_by="Ingredient.position"
     )
     steps: Mapped[list[Step]] = relationship(
         back_populates="recipe", cascade="all, delete-orphan", order_by="Step.order"
@@ -86,9 +87,15 @@ class Recipe(Base):
 
 class Ingredient(Base):
     __tablename__ = "ingredients"
+    # Declared here as well as in the migration so autogenerate doesn't see the
+    # index as drift and propose dropping it.
+    __table_args__ = (Index("ix_ingredients_recipe_position", "recipe_id", "position"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     recipe_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False)
+    # Display order within the recipe. Without it, ingredients come back in
+    # UUID order -- i.e. shuffled, and re-shuffled after every edit.
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     quantity: Mapped[float | None] = mapped_column(Numeric(10, 3), nullable=True)
     unit: Mapped[str | None] = mapped_column(String(50), nullable=True)

@@ -6,8 +6,10 @@ export type MealPlanMode = "auto" | "manual";
 export interface Ingredient {
   id: string;
   recipe_id: string;
+  position: number;
   name: string;
-  quantity: number | null;
+  /** Decimal from the API, serialized as a string (e.g. "1.500"). */
+  quantity: string | null;
   unit: string | null;
   category: IngredientCategory;
 }
@@ -40,7 +42,8 @@ export interface RecipeSummary {
   prep_time: number | null;
   cook_time: number | null;
   servings: number | null;
-  estimated_cost: number | null;
+  /** Decimal from the API, serialized as a string (e.g. "9.99"). */
+  estimated_cost: string | null;
   tags: string[];
   is_favorite: boolean;
   created_at: string;
@@ -57,7 +60,8 @@ export interface ShoppingListItem {
   id: string;
   recipe_id: string | null;
   name: string;
-  quantity: number | null;
+  /** Decimal from the API, serialized as a string (e.g. "1.500"). */
+  quantity: string | null;
   unit: string | null;
   category: IngredientCategory;
   is_checked: boolean;

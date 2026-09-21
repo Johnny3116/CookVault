@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
+import { ingredientLabel } from "@/lib/format";
 import type { ShoppingListItem } from "@/types";
 
 const CATEGORIES: { key: ShoppingListItem["category"]; label: string }[] = [
@@ -68,9 +69,7 @@ export default function ShoppingListPage() {
                   <li key={item.id} className="flex items-center gap-2 text-sm">
                     <input type="checkbox" checked={item.is_checked} onChange={() => toggleChecked(item)} />
                     <span className={item.is_checked ? "text-neutral-400 line-through" : ""}>
-                      {item.quantity ? `${item.quantity} ` : ""}
-                      {item.unit ? `${item.unit} ` : ""}
-                      {item.name}
+                      {ingredientLabel(item)}
                     </span>
                   </li>
                 ))}

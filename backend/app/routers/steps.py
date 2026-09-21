@@ -39,7 +39,7 @@ def add_step(recipe_id: uuid.UUID, payload: schemas.StepCreate, db: Session = De
 
 
 @router.patch("/{step_id}", response_model=schemas.StepRead)
-def update_step(recipe_id: uuid.UUID, step_id: uuid.UUID, payload: schemas.StepBase, db: Session = Depends(get_db)):
+def update_step(recipe_id: uuid.UUID, step_id: uuid.UUID, payload: schemas.StepUpdate, db: Session = Depends(get_db)):
     step = db.get(models.Step, step_id)
     if step is None or step.recipe_id != recipe_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Step not found")

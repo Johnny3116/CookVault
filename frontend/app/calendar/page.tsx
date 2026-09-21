@@ -3,18 +3,8 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
+import { addDays, fmtDate as fmt, startOfWeek, weekDays } from "@/lib/dates";
 import type { MealPlanEntry, RecipeSummary } from "@/types";
-
-function startOfWeek(date: Date) {
-  const d = new Date(date);
-  d.setDate(d.getDate() - d.getDay());
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function fmt(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
 
 export default function CalendarPage() {
   const [weekStart] = useState(() => startOfWeek(new Date()));
@@ -22,15 +12,10 @@ export default function CalendarPage() {
   const [recipes, setRecipes] = useState<RecipeSummary[]>([]);
   const [selectedRecipeId, setSelectedRecipeId] = useState("");
 
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart);
-    d.setDate(weekStart.getDate() + i);
-    return d;
-  });
+  const days = weekDays(weekStart);
 
   async function load() {
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
+    const weekEnd = addDays(weekStart, 6);
     const [entriesData, recipesData] = await Promise.all([
       apiFetch<MealPlanEntry[]>(`/meal-plan?start=${fmt(weekStart)}&end=${fmt(weekEnd)}`),
       apiFetch<RecipeSummary[]>("/recipes"),
