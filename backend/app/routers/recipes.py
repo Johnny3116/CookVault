@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -21,16 +21,45 @@ def _get_recipe_or_404(recipe_id: uuid.UUID, db: Session) -> models.Recipe:
 @router.get("", response_model=list[schemas.RecipeSummary])
 def list_recipes(
     favorite: bool | None = None,
-    cuisine: str | None = None,
+    tag: str | None = None,
+    max_total_time: int | None = None,
+    cook_method: str | None = None,
+    search: str | None = None,
     db: Session = Depends(get_db),
 ):
+    """List recipes, narrowed by any combination of the filters.
+
+    max_total_time is prep + cook in minutes. A recipe that records neither
+    counts as 0 rather than being excluded -- an unknown time is not a long
+    one, and dropping untimed recipes would hide most of a young library.
+    """
     stmt = select(models.Recipe)
     if favorite is not None:
         stmt = stmt.where(models.Recipe.is_favorite == favorite)
-    if cuisine is not None:
-        stmt = stmt.where(models.Recipe.tags.contains([cuisine]))
+    if tag is not None:
+        stmt = stmt.where(models.Recipe.tags.contains([tag]))
+    if cook_method is not None:
+        stmt = stmt.where(models.Recipe.cook_methods.contains([cook_method]))
+    if max_total_time is not None:
+        total = func.coalesce(models.Recipe.prep_time, 0) + func.coalesce(models.Recipe.cook_time, 0)
+        stmt = stmt.where(total <= max_total_time)
+    if search is not None and search.strip():
+        stmt = stmt.where(models.Recipe.title.ilike(f"%{search.strip()}%"))
     stmt = stmt.order_by(models.Recipe.updated_at.desc())
     return db.execute(stmt).scalars().all()
+
+
+@router.get("/facets", response_model=schemas.RecipeFacets)
+def recipe_facets(db: Session = Depends(get_db)):
+    """The tags and cook methods actually in use, so the UI can offer real
+    choices instead of a free-text box the user has to guess at."""
+    tags = db.execute(
+        select(func.unnest(models.Recipe.tags).label("tag")).distinct().order_by("tag")
+    ).scalars().all()
+    methods = db.execute(
+        select(func.unnest(models.Recipe.cook_methods).label("method")).distinct().order_by("method")
+    ).scalars().all()
+    return schemas.RecipeFacets(tags=list(tags), cook_methods=list(methods))
 
 
 def _apply_children(recipe: models.Recipe, payload: schemas.RecipeCreate) -> None:

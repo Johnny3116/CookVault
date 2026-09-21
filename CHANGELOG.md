@@ -11,6 +11,25 @@ dates are commit dates rather than release dates.
 
 ### Added
 
+- Unit normalization layer (`backend/app/units.py`), the thing spec §7 flags as
+  the trap to solve early: alias resolution, exact Decimal conversion within a
+  dimension, and merge rules that refuse to invent numbers. Mass and volume
+  deliberately never combine, since that needs a density.
+- Shopping list generation now merges duplicate ingredients across recipes,
+  summing compatible units and reporting the total in the unit the recipe was
+  written in. Incompatible amounts stay as separate lines.
+- Generating a shopping list is idempotent: it replaces what the last generate
+  produced and leaves hand-added items alone. It previously appended, so a
+  second press silently doubled the list.
+- `DELETE /shopping-list`, with `?checked_only=true` to clear just the ticked
+  items, and a shopping list UI that can generate from selected recipes, delete
+  single items, and set quantity, unit and category when adding by hand.
+- Library filtering by tag, cook method, total time and title search, combinable
+  and held in the URL so a filtered view is shareable. `GET /recipes/facets`
+  reports the tags and cook methods actually in use, so the filters offer real
+  choices instead of a free-text guess.
+- Calendar week navigation (previous, next, back to this week), with today's
+  column highlighted.
 - GitHub Actions CI (`.github/workflows/ci.yml`) running on every pull request
   and every push to `main`: the backend job applies the migrations, reverses
   them to base and reapplies them, runs `alembic check` for model drift and
@@ -47,6 +66,9 @@ dates are commit dates rather than release dates.
 
 ### Changed
 
+- `GET /recipes` takes `tag` where it previously took `cuisine`; the parameter
+  filtered on tags either way, and the old name described something the data
+  model doesn't have.
 - **The browser now only talks to one origin.** `/api/*` is proxied server-side
   to the backend by `frontend/app/api/[...path]/route.ts`. This removes the CORS
   configuration, takes the backend address out of the client bundle, makes the

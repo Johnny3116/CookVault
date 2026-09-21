@@ -56,8 +56,69 @@ def test_favorite_filter(client, recipe_payload):
 def test_tag_filter(client, recipe_payload):
     recipe_id = client.post("/recipes", json=recipe_payload).json()["id"]
 
-    assert [r["id"] for r in client.get("/recipes?cuisine=italian").json()] == [recipe_id]
-    assert client.get("/recipes?cuisine=thai").json() == []
+    assert [r["id"] for r in client.get("/recipes?tag=italian").json()] == [recipe_id]
+    assert client.get("/recipes?tag=thai").json() == []
+
+
+def test_cook_method_filter(client, recipe_payload):
+    recipe_id = client.post("/recipes", json=recipe_payload).json()["id"]
+
+    assert [r["id"] for r in client.get("/recipes?cook_method=stovetop").json()] == [recipe_id]
+    assert client.get("/recipes?cook_method=air fryer").json() == []
+
+
+def test_max_total_time_filter_sums_prep_and_cook(client, recipe_payload):
+    quick = dict(recipe_payload, title="Quick", prep_time=5, cook_time=10)
+    slow = dict(recipe_payload, title="Slow", prep_time=30, cook_time=60)
+    client.post("/recipes", json=quick)
+    client.post("/recipes", json=slow)
+
+    assert [r["title"] for r in client.get("/recipes?max_total_time=20").json()] == ["Quick"]
+    assert {r["title"] for r in client.get("/recipes?max_total_time=90").json()} == {"Quick", "Slow"}
+
+
+def test_untimed_recipes_are_not_hidden_by_the_time_filter(client, recipe_payload):
+    """An unknown time is not a long one; excluding these would hide most of a
+    young library."""
+    untimed = dict(recipe_payload, title="Untimed", prep_time=None, cook_time=None)
+    client.post("/recipes", json=untimed)
+
+    assert [r["title"] for r in client.get("/recipes?max_total_time=10").json()] == ["Untimed"]
+
+
+def test_search_filter_matches_titles_case_insensitively(client, recipe_payload):
+    recipe_id = client.post("/recipes", json=recipe_payload).json()["id"]
+
+    assert [r["id"] for r in client.get("/recipes?search=carbonara").json()] == [recipe_id]
+    assert client.get("/recipes?search=lasagne").json() == []
+
+
+def test_filters_combine(client, recipe_payload):
+    client.post("/recipes", json=dict(recipe_payload, title="Fast Italian", prep_time=5, cook_time=5))
+    client.post("/recipes", json=dict(recipe_payload, title="Slow Italian", prep_time=60, cook_time=60))
+
+    matched = client.get("/recipes?tag=italian&max_total_time=15").json()
+
+    assert [r["title"] for r in matched] == ["Fast Italian"]
+
+
+def test_facets_report_values_actually_in_use(client, recipe_payload):
+    client.post("/recipes", json=recipe_payload)
+    client.post("/recipes", json=dict(recipe_payload, tags=["thai"], cook_methods=["wok"]))
+
+    facets = client.get("/recipes/facets").json()
+
+    assert facets["tags"] == ["italian", "thai", "weeknight"]
+    assert facets["cook_methods"] == ["stovetop", "wok"]
+
+
+def test_facets_route_is_not_shadowed_by_the_recipe_id_route(client):
+    """/recipes/facets must be declared before /recipes/{recipe_id}, or FastAPI
+    tries to parse "facets" as a UUID."""
+    response = client.get("/recipes/facets")
+
+    assert response.status_code == 200
+    assert response.json() == {"tags": [], "cook_methods": []}
 
 
 def test_put_replaces_recipe_and_children(client, recipe_payload):

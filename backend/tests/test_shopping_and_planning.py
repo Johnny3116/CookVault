@@ -76,3 +76,185 @@ def test_finder_matches_saved_recipes_by_title(client, recipe_payload):
     # Web search is Phase 2 and says so rather than returning nothing silently.
     assert found.json()["new_finds"] == []
     assert "Phase 2" in found.json()["new_finds_note"]
+
+
+def _names(items: list[dict]) -> list[str]:
+    return sorted(item["name"] for item in items)
+
+
+def _line(items: list[dict], name: str) -> dict:
+    matches = [i for i in items if i["name"].lower() == name.lower()]
+    assert len(matches) == 1, f"expected one {name!r} line, got {len(matches)}"
+    return matches[0]
+
+
+def _recipe(**overrides) -> dict:
+    base = {
+        "title": "R",
+        "tags": [],
+        "cook_methods": [],
+        "ingredients": [],
+        "steps": [],
+        "alternates": [],
+    }
+    base.update(overrides)
+    return base
+
+
+def test_generate_merges_the_same_ingredient_across_recipes(client):
+    """Two recipes each wanting a cup of stock is one line, not two."""
+    first = client.post(
+        "/recipes",
+        json=_recipe(
+            title="Soup",
+            ingredients=[{"name": "stock", "quantity": 1, "unit": "cup", "category": "pantry_dry_good"}],
+        ),
+    ).json()["id"]
+    second = client.post(
+        "/recipes",
+        json=_recipe(
+            title="Risotto",
+            ingredients=[{"name": "Stock", "quantity": 2, "unit": "cup", "category": "pantry_dry_good"}],
+        ),
+    ).json()["id"]
+
+    items = client.post("/shopping-list/generate", json={"recipe_ids": [first, second]}).json()
+
+    stock = _line(items, "stock")
+    assert stock["quantity"] == "3.000"
+    assert stock["unit"] == "cup"
+
+
+def test_generate_converts_compatible_units_before_summing(client):
+    recipe_id = client.post(
+        "/recipes",
+        json=_recipe(
+            ingredients=[
+                {"name": "milk", "quantity": 1, "unit": "cup", "category": "raw_ingredient"},
+                {"name": "milk", "quantity": 2, "unit": "tbsp", "category": "raw_ingredient"},
+            ],
+        ),
+    ).json()["id"]
+
+    items = client.post("/shopping-list/generate", json={"recipe_ids": [recipe_id]}).json()
+
+    milk = _line(items, "milk")
+    assert milk["unit"] == "cup"
+    assert float(milk["quantity"]) == 1.125
+
+
+def test_generate_keeps_incompatible_units_as_separate_lines(client):
+    """Adding 2 cloves to 1 tbsp would be inventing a number."""
+    recipe_id = client.post(
+        "/recipes",
+        json=_recipe(
+            ingredients=[
+                {"name": "garlic", "quantity": 2, "unit": "cloves", "category": "raw_ingredient"},
+                {"name": "garlic", "quantity": 1, "unit": "tbsp", "category": "raw_ingredient"},
+            ],
+        ),
+    ).json()["id"]
+
+    items = client.post("/shopping-list/generate", json={"recipe_ids": [recipe_id]}).json()
+
+    garlic = [i for i in items if i["name"] == "garlic"]
+    assert len(garlic) == 2
+    assert {i["unit"] for i in garlic} == {"cloves", "tbsp"}
+
+
+def test_generate_does_not_merge_across_categories(client):
+    """The same word in two columns stays in both, rather than picking one."""
+    recipe_id = client.post(
+        "/recipes",
+        json=_recipe(
+            ingredients=[
+                {"name": "olive oil", "quantity": 1, "unit": "tbsp", "category": "pantry_dry_good"},
+                {"name": "olive oil", "quantity": 1, "unit": "tbsp", "category": "spice_sauce"},
+            ],
+        ),
+    ).json()["id"]
+
+    items = client.post("/shopping-list/generate", json={"recipe_ids": [recipe_id]}).json()
+
+    assert {i["category"] for i in items if i["name"] == "olive oil"} == {
+        "pantry_dry_good",
+        "spice_sauce",
+    }
+
+
+def test_generating_twice_does_not_double_the_list(client):
+    """The old behavior appended, so a second click silently doubled everything."""
+    recipe_id = client.post(
+        "/recipes",
+        json=_recipe(
+            ingredients=[{"name": "stock", "quantity": 1, "unit": "cup", "category": "pantry_dry_good"}],
+        ),
+    ).json()["id"]
+
+    first = client.post("/shopping-list/generate", json={"recipe_ids": [recipe_id]}).json()
+    second = client.post("/shopping-list/generate", json={"recipe_ids": [recipe_id]}).json()
+
+    assert _names(first) == _names(second)
+    assert _line(second, "stock")["quantity"] == "1.000"
+
+
+def test_regenerating_preserves_hand_added_items(client):
+    recipe_id = client.post(
+        "/recipes",
+        json=_recipe(ingredients=[{"name": "stock", "category": "pantry_dry_good"}]),
+    ).json()["id"]
+    client.post("/shopping-list/generate", json={"recipe_ids": [recipe_id]})
+    client.post("/shopping-list", json={"name": "bin bags", "category": "misc"})
+
+    items = client.post("/shopping-list/generate", json={"recipe_ids": [recipe_id]}).json()
+
+    assert "bin bags" in _names(items)
+    assert _line(items, "bin bags")["is_generated"] is False
+    assert _line(items, "stock")["is_generated"] is True
+
+
+def test_generate_with_no_recipes_clears_the_generated_half(client):
+    recipe_id = client.post(
+        "/recipes",
+        json=_recipe(ingredients=[{"name": "stock", "category": "pantry_dry_good"}]),
+    ).json()["id"]
+    client.post("/shopping-list/generate", json={"recipe_ids": [recipe_id]})
+    client.post("/shopping-list", json={"name": "bin bags", "category": "misc"})
+
+    items = client.post("/shopping-list/generate", json={"recipe_ids": []}).json()
+
+    assert _names(items) == ["bin bags"]
+
+
+def test_ingredients_without_amounts_do_not_gain_one(client):
+    recipe_id = client.post(
+        "/recipes",
+        json=_recipe(
+            ingredients=[
+                {"name": "salt", "category": "spice_sauce"},
+                {"name": "salt", "category": "spice_sauce"},
+            ],
+        ),
+    ).json()["id"]
+
+    items = client.post("/shopping-list/generate", json={"recipe_ids": [recipe_id]}).json()
+
+    assert _line(items, "salt")["quantity"] is None
+
+
+def test_clear_checked_only_removes_ticked_items(client):
+    keep = client.post("/shopping-list", json={"name": "keep", "category": "misc"}).json()["id"]
+    drop = client.post("/shopping-list", json={"name": "drop", "category": "misc"}).json()["id"]
+    client.patch(f"/shopping-list/{drop}", json={"is_checked": True})
+
+    assert client.delete("/shopping-list?checked_only=true").status_code == 204
+
+    assert [i["id"] for i in client.get("/shopping-list").json()] == [keep]
+
+
+def test_clear_empties_the_whole_list(client):
+    client.post("/shopping-list", json={"name": "keep", "category": "misc"})
+
+    assert client.delete("/shopping-list").status_code == 204
+
+    assert client.get("/shopping-list").json() == []

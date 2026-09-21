@@ -123,6 +123,13 @@ class RecipeUpdate(BaseModel):
     is_favorite: bool | None = None
 
 
+class RecipeFacets(BaseModel):
+    """Distinct tag and cook-method values present in the library."""
+
+    tags: list[str] = []
+    cook_methods: list[str] = []
+
+
 class RecipeReplace(RecipeCreate):
     """Body for PUT /recipes/{id} -- replaces the recipe and all its children."""
 
@@ -164,6 +171,7 @@ class ShoppingListItemRead(ShoppingListItemBase):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     recipe_id: uuid.UUID | None = None
+    is_generated: bool = False
 
 
 class ShoppingListGenerateRequest(BaseModel):

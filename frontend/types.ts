@@ -65,6 +65,14 @@ export interface ShoppingListItem {
   unit: string | null;
   category: IngredientCategory;
   is_checked: boolean;
+  /** True for rows built by "generate from recipes"; those are replaced on
+   *  the next generate, while hand-added items survive it. */
+  is_generated: boolean;
+}
+
+export interface RecipeFacets {
+  tags: string[];
+  cook_methods: string[];
 }
 
 export interface MealPlanEntry {

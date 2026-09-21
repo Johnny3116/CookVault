@@ -147,6 +147,10 @@ class ShoppingListItem(Base):
         Enum(IngredientCategory, name="ingredient_category"), default=IngredientCategory.misc, nullable=False
     )
     is_checked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Distinguishes rows built by /generate from ones typed in by hand.
+    # recipe_id can't carry this: merging an ingredient that came from three
+    # recipes leaves no single recipe to point at.
+    is_generated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     recipe: Mapped[Recipe | None] = relationship(back_populates="shopping_list_items")
 

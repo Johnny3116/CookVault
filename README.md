@@ -22,21 +22,43 @@ request/response JSON contract hasn't been verified yet — see
 
 **Known gaps, in rough priority order:**
 
-- The shopping list doesn't merge duplicate ingredients across recipes — two
-  recipes with onion give you two lines.
-- There's no unit normalization layer. Spec §7 flags this as the trap to solve
-  early rather than retrofit, and it hasn't been started.
-- The calendar shows the current week only; there's no previous/next navigation.
-- Library filtering is favorite-only, though the API also supports filtering by
-  tag.
+- Unit conversion has no density table, so mass and volume never combine: a
+  recipe wanting 30 g of butter and another wanting 2 tbsp stay two lines.
+  That's deliberate — guessing a density would be worse — but it does mean the
+  list occasionally asks for the same thing twice.
 - The frontend has no tests of its own; CI typechecks and builds it, but nothing
   exercises the pages.
+- Recipe scaling (halving or doubling a recipe) isn't built, though the unit
+  layer that would back it is.
 
 ## Stack
 
 - Backend: FastAPI + SQLAlchemy + Alembic + PostgreSQL
 - Frontend: Next.js (App Router) + Tailwind
 - Deployment: Docker Compose
+
+## Units and the shopping list
+
+Recipes mix cups, grams, ounces and millilitres, and the shopping list has to
+add them up — spec §7 calls this the trap to solve early. `backend/app/units.py`
+is that layer: alias resolution (`Tablespoons`, `tbs`, `T` all mean one thing),
+exact Decimal conversion within a dimension, and merge rules.
+
+What it does and doesn't do, by design:
+
+- Amounts in compatible units are summed and reported **in the unit the cook
+  wrote**. Two recipes wanting 4 cups and 500 mL of stock give one `6.113 cup`
+  line, not millilitres.
+- Amounts that can't convert stay separate. `2 cloves` of garlic and `1 tbsp`
+  of garlic are two lines, because adding them would invent a number. Mass and
+  volume never combine — that needs a density this app doesn't have.
+- An ingredient with no amount ("salt, to taste") merges to one line and stays
+  amountless rather than becoming 0.
+- Unrecognized units are not an error. `pinch`, `sprig` and `clove` are real
+  recipe entries; they just only merge with themselves.
+
+Generating is idempotent: it replaces the rows a previous generate produced and
+leaves hand-added items alone, so pressing it twice gives the same list.
 
 ## Architecture note: one port, not two
 
