@@ -1,42 +1,264 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import { IngredientColumn } from "@/components/IngredientColumn";
+import { ProvenanceCard } from "@/components/ProvenanceCard";
 import { StepList } from "@/components/StepList";
 import { apiFetch } from "@/lib/api";
-import type { RecipeDetail as RecipeDetailType } from "@/types";
+import { formatCost } from "@/lib/format";
+import type { IngredientCategory, RecipeDetail as RecipeDetailType } from "@/types";
 
-export default function RecipeDetailPage() {
+const COLUMNS: { category: IngredientCategory; label: string }[] = [
+  { category: "raw_ingredient", label: "Raw Ingredients" },
+  { category: "spice_sauce", label: "Spices & Sauces" },
+  { category: "pantry_dry_good", label: "Pantry & Dry Goods" },
+  { category: "misc", label: "Misc" },
+];
+
+const PRESETS = [0.5, 1, 1.5, 2];
+
+function presetTarget(baseServings: number | null, multiplier: number) {
+  return Math.round((baseServings ?? 0) * multiplier);
+}
+
+// 2.5 reads as "2.5", 2 reads as "2" -- not "2.0".
+function formatScale(value: number) {
+  return Number(value.toFixed(2)).toString();
+}
+
+function RecipeDetailContent() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [recipe, setRecipe] = useState<RecipeDetailType | null>(null);
 
+  // The number field keeps its own text while it is being typed. Committing on
+  // every keystroke would navigate (and refetch) for "1" on the way to "10",
+  // and would make the field impossible to clear.
+  const currentTarget = recipe?.scaled_to_servings ?? recipe?.servings ?? null;
+  const [servingsDraft, setServingsDraft] = useState("");
   useEffect(() => {
-    apiFetch<RecipeDetailType>(`/recipes/${params.id}`).then(setRecipe);
-  }, [params.id]);
+    setServingsDraft(currentTarget === null ? "" : String(currentTarget));
+  }, [currentTarget]);
 
+  // The target lives in the URL, not component state, so that a planned meal
+  // can link straight to the servings it was planned for -- the calendar links
+  // here with ?servings=N -- and so a scaled view is shareable and survives
+  // the back button.
+  const requested = Number(searchParams.get("servings"));
+  const servings = Number.isFinite(requested) && requested > 0 ? requested : null;
+
+  function setServings(next: number | null) {
+    const query = new URLSearchParams(searchParams.toString());
+    if (next === null) query.delete("servings");
+    else query.set("servings", String(next));
+    const suffix = query.toString() ? `?${query}` : "";
+    router.replace(`/recipes/${params.id}${suffix}`, { scroll: false });
+  }
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const query = servings === null ? "" : `?servings=${servings}`;
+    apiFetch<RecipeDetailType>(`/recipes/${params.id}${query}`)
+      .then(setRecipe)
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load recipe"));
+  }, [params.id, servings]);
+
+  async function toggleFavorite() {
+    if (!recipe) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await apiFetch<RecipeDetailType>(`/recipes/${recipe.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ is_favorite: !recipe.is_favorite }),
+      });
+      setRecipe(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update favorite");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!recipe) return;
+    if (!window.confirm(`Delete “${recipe.title}”? This can't be undone.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch(`/recipes/${recipe.id}`, { method: "DELETE" });
+      router.push("/library");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete recipe");
+      setBusy(false);
+    }
+  }
+
+  if (error && !recipe) return <p className="text-sm text-red-600">{error}</p>;
   if (!recipe) return <p className="text-neutral-500">Loading…</p>;
 
-  const byCategory = (category: string) => recipe.ingredients.filter((i) => i.category === category);
+  const byCategory = (category: IngredientCategory) =>
+    recipe.ingredients.filter((i) => i.category === category);
+
+  // A recipe that never recorded its own yield has no baseline to scale from.
+  const canScale = (recipe.scaled_to_servings ?? recipe.servings ?? 0) > 0;
+  const baseServings = recipe.scaled_to_servings
+    ? Math.round(recipe.scaled_to_servings / Number(recipe.applied_scale ?? 1))
+    : recipe.servings;
+  const isScaled = recipe.scaled_to_servings !== null;
+
+  // Which preset, if any, the current target corresponds to -- and the real
+  // multiplier when none of them does.
+  const matchedPresetTarget =
+    PRESETS.map((m) => presetTarget(baseServings, m)).find((t) => t === currentTarget) ?? null;
+  const customScale =
+    baseServings && currentTarget ? currentTarget / baseServings : null;
+
+  function commitServings() {
+    const value = Number(servingsDraft);
+    if (servingsDraft.trim() === "" || !Number.isFinite(value) || value <= 0) {
+      setServingsDraft(currentTarget === null ? "" : String(currentTarget));
+      return;
+    }
+    setServings(value === baseServings ? null : Math.round(value));
+  }
+
+  const meta = [
+    recipe.prep_time ? `${recipe.prep_time}m prep` : null,
+    recipe.cook_time ? `${recipe.cook_time}m cook` : null,
+    // The saved recipe's own yield, not the scaled target: prep and cook time
+    // beside it do not scale either, and the row below already states the
+    // target. "serves 10 ... the saved recipe is unchanged" read as a
+    // contradiction.
+    baseServings ? `serves ${baseServings}` : null,
+    formatCost(recipe.estimated_cost) ? `~${formatCost(recipe.estimated_cost)}` : null,
+    recipe.cook_methods.length > 0 ? recipe.cook_methods.join(", ") : null,
+  ].filter(Boolean);
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">{recipe.title}</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          {recipe.prep_time ? `${recipe.prep_time}m prep` : ""}
-          {recipe.cook_time ? ` · ${recipe.cook_time}m cook` : ""}
-          {recipe.servings ? ` · serves ${recipe.servings}` : ""}
-          {recipe.estimated_cost ? ` · ~$${recipe.estimated_cost}` : ""}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">{recipe.title}</h1>
+          {meta.length > 0 && <p className="mt-1 text-sm text-neutral-500">{meta.join(" · ")}</p>}
+          {recipe.tags.length > 0 && (
+            <p className="mt-2 text-xs text-neutral-400">{recipe.tags.join(" · ")}</p>
+          )}
+          {recipe.source_url && (
+            <a
+              href={recipe.source_url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-block text-xs text-neutral-500 underline"
+            >
+              Source
+            </a>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleFavorite}
+            disabled={busy}
+            aria-pressed={recipe.is_favorite}
+            className="rounded border border-neutral-300 px-3 py-1 text-sm disabled:opacity-50"
+          >
+            {recipe.is_favorite ? "★ Favorite" : "☆ Favorite"}
+          </button>
+          <Link
+            href={`/recipes/${recipe.id}/edit`}
+            className="rounded border border-neutral-300 px-3 py-1 text-sm"
+          >
+            Edit
+          </Link>
+          <button
+            onClick={handleDelete}
+            disabled={busy}
+            className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 disabled:opacity-50"
+          >
+            Delete
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-        <IngredientColumn title="Raw Ingredients" ingredients={byCategory("raw_ingredient")} />
-        <IngredientColumn title="Spices & Sauces" ingredients={byCategory("spice_sauce")} />
-        <IngredientColumn title="Pantry & Dry Goods" ingredients={byCategory("pantry_dry_good")} />
-        <IngredientColumn title="Misc" ingredients={byCategory("misc")} />
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <div className="flex flex-wrap items-center gap-2 rounded border border-neutral-200 p-3">
+        <span className="text-sm font-medium">Make for</span>
+        {canScale ? (
+          <>
+            {PRESETS.map((multiplier) => {
+              const target = presetTarget(baseServings, multiplier);
+              return (
+                <button
+                  key={multiplier}
+                  onClick={() => setServings(multiplier === 1 ? null : target)}
+                  aria-pressed={target === matchedPresetTarget}
+                  className={`rounded border px-3 py-1 text-sm ${
+                    target === matchedPresetTarget
+                      ? "border-neutral-800 bg-neutral-800 text-white"
+                      : "border-neutral-300"
+                  }`}
+                >
+                  {formatScale(multiplier)}×
+                </button>
+              );
+            })}
+            {/* A target the presets can't express -- 10 from a base of 4, say --
+                used to leave every button unlit, which read as a dead control.
+                The row now always carries exactly one lit chip, and when that
+                chip is this one it is a readout rather than a button: there is
+                nothing to navigate to, we are already there. */}
+            {matchedPresetTarget === null && customScale !== null && (
+              <span
+                aria-current="true"
+                title="Custom scale"
+                className="rounded border border-neutral-800 bg-neutral-800 px-3 py-1 text-sm text-white"
+              >
+                {formatScale(customScale)}×
+              </span>
+            )}
+            <input
+              type="number"
+              min={1}
+              aria-label="Servings"
+              value={servingsDraft}
+              onChange={(e) => setServingsDraft(e.target.value)}
+              onBlur={commitServings}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitServings();
+                if (e.key === "Escape") {
+                  setServingsDraft(currentTarget === null ? "" : String(currentTarget));
+                }
+              }}
+              className="w-20 rounded border border-neutral-300 px-2 py-1 text-sm"
+            />
+            <span className="text-sm text-neutral-500">servings</span>
+            {isScaled && (
+              <span className="basis-full text-xs text-neutral-500 sm:basis-auto">
+                scaled {recipe.applied_scale}× from {baseServings} — the saved recipe is unchanged
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="text-sm text-neutral-500">
+            Set a servings count on this recipe to scale it.
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-4">
+        {COLUMNS.map((column) => (
+          <IngredientColumn
+            key={column.category}
+            title={column.label}
+            ingredients={byCategory(column.category)}
+          />
+        ))}
       </div>
 
       <hr className="border-neutral-200" />
@@ -46,18 +268,35 @@ export default function RecipeDetailPage() {
         <StepList steps={recipe.steps} />
       </div>
 
+      {recipe.provenance && <ProvenanceCard provenance={recipe.provenance} />}
+
       <div>
         <h2 className="mb-4 text-lg font-semibold">Alternates</h2>
-        {recipe.alternates.length === 0 && <p className="text-neutral-500">No alternates recorded.</p>}
-        <ul className="space-y-2">
-          {recipe.alternates.map((alt) => (
-            <li key={alt.id} className="text-sm">
-              <span className="font-medium">{alt.original_value}</span> → {alt.alternate_value}
-              {alt.notes && <span className="text-neutral-400"> ({alt.notes})</span>}
-            </li>
-          ))}
-        </ul>
+        {recipe.alternates.length === 0 ? (
+          <p className="text-neutral-500">No alternates recorded.</p>
+        ) : (
+          <ul className="space-y-2">
+            {recipe.alternates.map((alt) => (
+              <li key={alt.id} className="text-sm">
+                <span className="text-xs uppercase tracking-wide text-neutral-400">
+                  {alt.type === "cook_method" ? "method" : "ingredient"}
+                </span>{" "}
+                <span className="font-medium">{alt.original_value}</span> → {alt.alternate_value}
+                {alt.notes && <span className="text-neutral-400"> ({alt.notes})</span>}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
+  );
+}
+
+export default function RecipeDetailPage() {
+  // useSearchParams needs a Suspense boundary in the app router.
+  return (
+    <Suspense fallback={<p className="text-neutral-500">Loading…</p>}>
+      <RecipeDetailContent />
+    </Suspense>
   );
 }

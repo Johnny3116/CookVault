@@ -35,6 +35,23 @@ def add_alternate(recipe_id: uuid.UUID, payload: schemas.AlternateCreate, db: Se
     return alternate
 
 
+@router.patch("/{alternate_id}", response_model=schemas.AlternateRead)
+def update_alternate(
+    recipe_id: uuid.UUID,
+    alternate_id: uuid.UUID,
+    payload: schemas.AlternateUpdate,
+    db: Session = Depends(get_db),
+):
+    alternate = db.get(models.Alternate, alternate_id)
+    if alternate is None or alternate.recipe_id != recipe_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alternate not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(alternate, field, value)
+    db.commit()
+    db.refresh(alternate)
+    return alternate
+
+
 @router.delete("/{alternate_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_alternate(recipe_id: uuid.UUID, alternate_id: uuid.UUID, db: Session = Depends(get_db)):
     alternate = db.get(models.Alternate, alternate_id)

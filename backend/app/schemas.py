@@ -3,10 +3,54 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import ClassVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, model_validator
 
-from app.models import AlternateType, IngredientCategory, MealPlanMode, SourceType
+from app.models import (
+    AlternateType,
+    DraftStatus,
+    ImportMethod,
+    IngredientCategory,
+    MealPlanMode,
+    MealType,
+    SourceType,
+)
+
+class PatchModel(BaseModel):
+    """Base for PATCH payloads.
+
+    Every field is optional, which is what makes a partial update partial --
+    but optional is not the same as nullable. `{"title": null}` is *set*, so it
+    survives `exclude_unset` and reaches a NOT NULL column as None, where the
+    database raises IntegrityError and FastAPI reports it as a 500: the app
+    blaming itself for what was really a bad request.
+
+    Subclasses list the fields backed by NOT NULL columns. Nullable columns are
+    deliberately absent from that list, because clearing one is a legitimate
+    edit -- `source_url: null` means "forget where this came from".
+    """
+
+    non_nullable: ClassVar[frozenset[str]] = frozenset()
+
+    @model_validator(mode="after")
+    def _reject_null_for_non_nullable(self):
+        nulled = sorted(
+            field
+            for field in self.non_nullable
+            # `in model_fields_set` is the whole distinction: sent-as-null, not
+            # merely absent.
+            if field in self.model_fields_set and getattr(self, field) is None
+        )
+        if nulled:
+            raise ValueError(f"these fields cannot be null: {', '.join(nulled)}")
+        return self
+
+
+# A field named `date` that carries a default puts `date = <default>` in its
+# class body, which shadows the imported type when the annotation is resolved.
+# Annotate such fields with this alias instead.
+CalendarDate = date
 
 
 class IngredientBase(BaseModel):
@@ -20,10 +64,23 @@ class IngredientCreate(IngredientBase):
     pass
 
 
+class IngredientUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"name", "category", "position"})
+
+    """Every field optional -- this is what makes PATCH actually partial."""
+
+    name: str | None = None
+    quantity: Decimal | None = None
+    unit: str | None = None
+    category: IngredientCategory | None = None
+    position: int | None = None
+
+
 class IngredientRead(IngredientBase):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     recipe_id: uuid.UUID
+    position: int
 
 
 class StepBase(BaseModel):
@@ -36,6 +93,18 @@ class StepBase(BaseModel):
 
 class StepCreate(StepBase):
     pass
+
+
+class StepUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"order", "instruction_text"})
+
+    """Every field optional -- this is what makes PATCH actually partial."""
+
+    order: int | None = None
+    instruction_text: str | None = None
+    temperature: str | None = None
+    duration: str | None = None
+    notes: str | None = None
 
 
 class StepRead(StepBase):
@@ -53,6 +122,17 @@ class AlternateBase(BaseModel):
 
 class AlternateCreate(AlternateBase):
     pass
+
+
+class AlternateUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"type", "original_value", "alternate_value"})
+
+    """Every field optional -- this is what makes PATCH actually partial."""
+
+    type: AlternateType | None = None
+    original_value: str | None = None
+    alternate_value: str | None = None
+    notes: str | None = None
 
 
 class AlternateRead(AlternateBase):
@@ -80,7 +160,9 @@ class RecipeCreate(RecipeBase):
     alternates: list[AlternateCreate] = []
 
 
-class RecipeUpdate(BaseModel):
+class RecipeUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"title", "source_type", "cook_methods", "tags", "is_favorite"})
+
     title: str | None = None
     source_type: SourceType | None = None
     source_url: str | None = None
@@ -91,6 +173,17 @@ class RecipeUpdate(BaseModel):
     estimated_cost: Decimal | None = None
     tags: list[str] | None = None
     is_favorite: bool | None = None
+
+
+class RecipeFacets(BaseModel):
+    """Distinct tag and cook-method values present in the library."""
+
+    tags: list[str] = []
+    cook_methods: list[str] = []
+
+
+class RecipeReplace(RecipeCreate):
+    """Body for PUT /recipes/{id} -- replaces the recipe and all its children."""
 
 
 class RecipeSummary(RecipeBase):
@@ -104,6 +197,12 @@ class RecipeDetail(RecipeSummary):
     ingredients: list[IngredientRead] = []
     steps: list[StepRead] = []
     alternates: list[AlternateRead] = []
+    # Present when the response has been scaled away from the stored recipe.
+    # The stored recipe is always canonical; scaling happens at read time.
+    scaled_to_servings: int | None = None
+    applied_scale: Decimal | None = None
+    # Where this recipe came from, when it wasn't simply typed in.
+    provenance: ProvenanceRead | None = None
 
 
 class ShoppingListItemBase(BaseModel):
@@ -118,7 +217,9 @@ class ShoppingListItemCreate(ShoppingListItemBase):
     recipe_id: uuid.UUID | None = None
 
 
-class ShoppingListItemUpdate(BaseModel):
+class ShoppingListItemUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"name", "category", "is_checked"})
+
     name: str | None = None
     quantity: Decimal | None = None
     unit: str | None = None
@@ -130,22 +231,138 @@ class ShoppingListItemRead(ShoppingListItemBase):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     recipe_id: uuid.UUID | None = None
+    is_generated: bool = False
 
 
 class ShoppingListGenerateRequest(BaseModel):
-    recipe_ids: list[uuid.UUID]
+    """What to shop for: ad-hoc recipes, a span of the meal plan, or both.
+
+    Meal-plan entries carry their own planned servings, so generating from a
+    week buys the amounts actually planned. Bare recipe_ids are bought as the
+    recipe is written.
+    """
+
+    recipe_ids: list[uuid.UUID] = []
+    start: date | None = None
+    end: date | None = None
 
 
 class MealPlanEntryBase(BaseModel):
     date: date
     recipe_id: uuid.UUID
     mode: MealPlanMode = MealPlanMode.manual
+    meal_type: MealType | None = None
+    # Servings wanted on the day; None means "as the recipe is written".
+    servings: int | None = None
 
 
 class MealPlanEntryCreate(MealPlanEntryBase):
     pass
 
 
+class MealPlanEntryUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"date"})
+
+    date: CalendarDate | None = None
+    meal_type: MealType | None = None
+    servings: int | None = None
+
+
 class MealPlanEntryRead(MealPlanEntryBase):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
+
+
+class ProvenanceBase(BaseModel):
+    """Where a draft or recipe came from, and who or what shaped it."""
+
+    source_type: SourceType = SourceType.manual
+    source_url: str | None = None
+    source_title: str | None = None
+    import_method: ImportMethod = ImportMethod.manual
+    # The raw source, kept apart from what was extracted out of it, so the two
+    # can still be compared later.
+    original_text: str | None = None
+    extracted_payload: dict | None = None
+    agent_model: str | None = None
+    agent_version: str | None = None
+
+
+class ProvenanceCreate(ProvenanceBase):
+    pass
+
+
+class ProvenanceRead(ProvenanceBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    draft_id: uuid.UUID | None = None
+    recipe_id: uuid.UUID | None = None
+    imported_at: datetime
+
+
+class DraftIssueRead(BaseModel):
+    """One problem with a proposed recipe.
+
+    `error` blocks promotion; `warning` is "look at this before you approve it"
+    -- an unconvertible unit, an ingredient listed twice.
+    """
+
+    severity: str
+    field: str
+    message: str
+
+
+class DraftValidation(BaseModel):
+    ok: bool
+    issues: list[DraftIssueRead] = []
+
+
+class RecipeDraftCreate(BaseModel):
+    title: str | None = None
+    # Shaped like RecipeCreate, but not typed as it: a draft is allowed to be
+    # wrong on arrival. Rejecting it at the door would mean the payloads most
+    # worth reviewing are the ones that can never be stored.
+    payload: dict = {}
+    provenance: ProvenanceCreate | None = None
+
+
+class RecipeDraftUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"payload"})
+
+    title: str | None = None
+    payload: dict | None = None
+
+
+class RecipeDraftSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    title: str | None = None
+    status: DraftStatus
+    promoted_recipe_id: uuid.UUID | None = None
+    promoted_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class RecipeDraftDetail(RecipeDraftSummary):
+    payload: dict = {}
+    provenance: ProvenanceRead | None = None
+
+
+class ImportUrlRequest(BaseModel):
+    """Import a recipe page. The result is always a draft, never a recipe."""
+
+    url: AnyHttpUrl
+    source_type: SourceType = SourceType.web
+    source_title: str | None = None
+
+
+class ImportPasteRequest(BaseModel):
+    """Import pasted recipe text."""
+
+    text: str
+    # Overrides whatever the parser guessed from the first line.
+    title: str | None = None
+    source_type: SourceType = SourceType.manual
+    source_title: str | None = None
+    source_url: str | None = None

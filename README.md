@@ -4,25 +4,232 @@ A personal, single-user smart cookbook and cooking assistant. Stores recipes in 
 consistent structured format, helps you find new recipes by budget/time/mood,
 generates shopping checklists, and plans meals on a calendar.
 
-Full spec: [`CookVault_MVP.md`](./CookVault_MVP.md).
+- Full spec: [`CookVault_MVP.md`](./CookVault_MVP.md)
+- Change history: [`CHANGELOG.md`](./CHANGELOG.md)
 
 ## Status
 
-**Phase 1 (this build):** recipe storage (manual entry, full CRUD), the four-column
-recipe detail page, shopping lists, and manual-mode meal planning — a genuinely usable
-app end to end.
+**Built and usable:** recipe storage with full CRUD from the UI (create, edit,
+delete, favorite), the four-column recipe detail page, alternates, shopping lists,
+manual-mode meal planning, nondestructive scaling, and the draft review queue
+that everything imported will eventually pass through.
 
-**Phase 2 (not built yet):** video/web import (yt-dlp + scraping), the LLM-parsed half
-of the recipe finder, and auto-fill meal planning. The relevant backend endpoints
-exist and return `501 Not Implemented` with a clear message rather than faking it.
-They depend on the Agent Zero instance on NexusServer, whose exact request/response
-JSON contract hasn't been verified yet — see `backend/app/agent_zero_client.py`.
+**Phase 2 (not built yet):** video/web import (yt-dlp + scraping), the LLM-parsed
+half of the recipe finder, and auto-fill meal planning. The relevant backend
+endpoints exist and return `501 Not Implemented` with a clear message rather than
+faking it. They depend on the Agent Zero instance on NexusServer, whose exact
+request/response JSON contract hasn't been verified yet — see
+`backend/app/agent_zero_client.py`.
+
+**Known gaps, in rough priority order:**
+
+- Unit conversion has no density table, so mass and volume never combine: a
+  recipe wanting 30 g of butter and another wanting 2 tbsp stay two lines.
+  That's deliberate — guessing a density would be worse — but it does mean the
+  list occasionally asks for the same thing twice.
+- The frontend has no tests of its own; CI typechecks and builds it, but nothing
+  exercises the pages. The draft lifecycle has been driven end to end in a real
+  browser, but by hand rather than by anything that runs in CI.
+- Import covers pasted text and web pages. Video transcripts are not handled,
+  and no model is involved in structuring — see "Importing" above.
+- The text parser is a heuristic. It reads the shapes real recipes use, but an
+  unusual layout will land wrong in the draft and need fixing by hand.
+- Provenance can only be set when a draft is created, not edited afterwards.
+  That is deliberate for now — where something came from doesn't change — but
+  it means a typo in a source title is fixed by starting over.
 
 ## Stack
 
 - Backend: FastAPI + SQLAlchemy + Alembic + PostgreSQL
-- Frontend: Next.js (App Router) + Tailwind, fetching the backend API client-side
+- Frontend: Next.js (App Router) + Tailwind
 - Deployment: Docker Compose
+
+## The cooking pipeline
+
+Scaling, planning and shopping are one path, not three features:
+
+```
+recipe (canonical)
+    ↓  effective_scale = planned servings / recipe servings
+scaled quantities
+    ↓  normalize units
+    ↓  merge compatible amounts
+generated shopping items
+```
+
+**Scaling is nondestructive.** The stored recipe is always canonical; scaling
+happens at read time via `GET /recipes/{id}?servings=N`, and the response
+carries `applied_scale` so the UI can say what it did.
+
+**The plan stores target servings, not a multiplier.** "Make this for 8" stays
+meaningful if the recipe's own yield is later corrected from 4 to 6, whereas a
+stored `scale = 2.0` silently becomes wrong. A recipe that never recorded its
+own servings can't be scaled from, so it comes back unchanged rather than being
+scaled from a guessed baseline.
+
+**Rounding happens once, at the end.** Scale, convert and merge all run at full
+Decimal precision; quantizing mid-pipeline compounds error across a week.
+
+The shared logic lives in `backend/app/services/` so the recipe endpoint, the
+shopping-list endpoint and eventually the import path all call one
+implementation.
+
+## Units and the shopping list
+
+Recipes mix cups, grams, ounces and millilitres, and the shopping list has to
+add them up — spec §7 calls this the trap to solve early. `backend/app/units.py`
+is that layer: alias resolution (`Tablespoons`, `tbs`, `T` all mean one thing),
+exact Decimal conversion within a dimension, and merge rules.
+
+What it does and doesn't do, by design:
+
+- Amounts in compatible units are summed and reported **in the unit the cook
+  wrote**. Two recipes wanting 4 cups and 500 mL of stock give one `6.113 cup`
+  line, not millilitres.
+- Amounts that can't convert stay separate. `2 cloves` of garlic and `1 tbsp`
+  of garlic are two lines, because adding them would invent a number. Mass and
+  volume never combine — that needs a density this app doesn't have.
+- An ingredient with no amount ("salt, to taste") merges to one line and stays
+  amountless rather than becoming 0.
+- Unrecognized units are not an error. `pinch`, `sprig` and `clove` are real
+  recipe entries; they just only merge with themselves.
+
+Generating is idempotent: it replaces the rows a previous generate produced and
+leaves hand-added items alone, so pressing it twice gives the same list.
+
+## Drafts: nothing enters the cookbook unreviewed
+
+`recipes` is the cookbook. `recipe_drafts` is the staging area in front of it,
+and promotion is the only route between them:
+
+```
+POST /drafts            propose            (status: draft)
+PATCH /drafts/{id}      edit               (ready -> draft again)
+POST /drafts/{id}/validate                 (draft <-> ready)
+POST /drafts/{id}/promote   -> recipe      (status: promoted, frozen)
+POST /drafts/{id}/discard                  (status: discarded, frozen)
+```
+
+The design principle this implements is **AI proposes, CookVault validates,
+John approves** — and it is built and proven by hand first. When an agent is
+eventually allowed to suggest recipes it gets `POST /drafts` and nothing else,
+so it arrives at the same door, and every guarantee below already applies to
+it.
+
+- **A draft is allowed to be wrong.** The payload is JSONB, not columns.
+  Rejecting bad payloads at the door would mean the proposals most worth
+  reviewing are the ones that can never be stored to review.
+- **Validation reports; it never repairs.** Silently fixing a proposal hides
+  exactly what the reviewer is there to see.
+- **Errors block promotion, warnings don't.** No ingredients, no steps, step
+  numbers that aren't a 1..n sequence: errors. An unconvertible unit or an
+  ingredient listed twice: warnings — "a handful of parsley" is a real thing
+  to write, and both are also the classic shapes of a bad extraction.
+- **Editing a payload drops `ready` back to `draft`.** The status is a claim
+  about a specific payload; letting it survive an edit would make it a claim
+  about a payload nobody checked.
+- **Promotion revalidates** rather than trusting the stored status. A gate that
+  trusts a cached answer is not a gate.
+- **Promoted and discarded drafts are frozen.** They are the record of what was
+  approved or rejected, not an editing surface.
+
+### Importing
+
+`POST /import` (a URL) and `POST /import/paste` (text) both create a **draft**.
+There is no flag to skip that: an importer reads text somebody else wrote and
+is sometimes wrong about it, so the review queue is where its output belongs
+by construction rather than by convention.
+
+Both paths are deterministic — no model, no API key:
+
+- **A URL** is fetched and its `schema.org/Recipe` JSON-LD read if present.
+  Most recipe sites publish it because Google asks them to, and it carries the
+  amounts the author actually typed, so this is extraction rather than
+  guessing. Without it, the page text goes through the same heuristic as a
+  paste, which is rougher.
+- **Pasted text** goes through `services/recipe_text.py`: amounts ("1 1/2",
+  "½", "400g", "2-3" → its lower bound), units, and a first guess at which of
+  the four columns each ingredient belongs to. Step numbers come out as 1..n
+  by construction, so a parsed draft never trips validation's sequence check
+  on the parser's account.
+
+The parser is a heuristic and will sometimes be wrong; it is only defensible
+because nothing it produces reaches the cookbook unreviewed.
+
+**URLs are checked before they are fetched.** The server fetches whatever it
+is handed, so `check_url` resolves the host first and refuses loopback,
+private, link-local, reserved and multicast addresses, and anything that is
+not http(s). A recipe never lives at a private address, and without this a
+pasted link could make CookVault fetch from inside the Tailscale network and
+store the reply.
+
+**Not built:** video transcripts and model-assisted structuring. Those need
+yt-dlp and a verified Agent Zero contract (`app/agent_zero_client.py`). When
+they land they produce the same payload and create a draft through the same
+function; `import_method` on the provenance row is what tells them apart
+afterwards.
+
+### Provenance
+
+`recipe_provenance` records where a draft or recipe came from: `source_type`,
+`source_url`, `source_title`, `import_method`, `imported_at`, and for anything
+a model touched, `agent_model` and `agent_version`.
+
+The raw source (`original_text`) and the extracted structure
+(`extracted_payload`) are stored in **separate columns on purpose**. Merged
+into one, "did the transcript actually say two teaspoons, or did the model
+decide that?" is unanswerable — and it is the question worth asking about an
+imported recipe. Both are visible on the draft and, after promotion, on the
+recipe.
+
+One provenance row serves a draft and the recipe it becomes: promotion points
+the same row at both, rather than copying it somewhere it can drift. That is
+also why a promoted draft can't be deleted — deleting it would cascade the
+recipe's provenance away.
+
+## Architecture note: one port, not two
+
+The browser only ever talks to the frontend's origin. `/api/*` is proxied
+server-side to the backend by `frontend/app/api/[...path]/route.ts`. That means:
+
+- no CORS configuration to keep in sync,
+- no backend address baked into the client bundle (so no rebuild when it changes),
+- the session cookie is same-origin, so the browser actually sends it,
+- **only one port needs `tailscale serve`.**
+
+The proxy is a route handler rather than a Next `rewrites()` entry on purpose:
+Next resolves rewrite destinations at *build* time and bakes them into the routes
+manifest, so a rewrite can't be repointed by an environment variable at deploy
+time. If you ever move this back to a rewrite, `BACKEND_ORIGIN` silently stops
+working.
+
+## Project layout
+
+```
+backend/
+  app/
+    main.py              FastAPI app, router registration, optional CORS
+    config.py            Settings, read from .env
+    models.py            SQLAlchemy models
+    schemas.py           Pydantic request/response schemas
+    auth.py              Optional password gate, HMAC session tokens
+    agent_zero_client.py Phase 2 stub — intentionally unimplemented
+    routers/             One module per resource
+    services/            Domain logic: scaling, shopping list, validation,
+                         recipe-text parsing, web import
+  alembic/versions/      Migrations (0001 initial ... 0005 drafts + provenance)
+  docker-entrypoint.sh   Runs migrations, then uvicorn
+frontend/
+  app/
+    api/[...path]/       Server-side proxy to the backend
+    recipes/             Detail, edit and new-recipe pages
+    drafts/              The review queue: import, propose, validate, promote
+    login/               Password gate
+    ...                  Dashboard, library, finder, shopping list, calendar
+  components/RecipeForm.tsx  Shared by the new and edit pages
+  lib/                   api client, date helpers, formatting helpers
+  types.ts               API response types
+```
 
 ## Local development
 
@@ -31,45 +238,117 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Run migrations the first time (and after any schema change):
+Migrations run automatically on backend startup (`backend/docker-entrypoint.sh`),
+and Compose waits for Postgres's healthcheck before starting the backend, so there
+is no manual first-run step.
+
+- App: http://localhost:3420
+- Backend directly (optional, for `/docs`): http://localhost:8420
+
+To run the frontend outside Compose, point it at a reachable backend:
 
 ```bash
-docker compose exec backend alembic upgrade head
+cd frontend && BACKEND_ORIGIN=http://localhost:8420 npm run dev
 ```
 
-- Backend: http://localhost:8420 (interactive docs at `/docs`)
-- Frontend: http://localhost:3420
+### Changing the schema
+
+Models live in `backend/app/models.py`; every change needs a matching migration.
+
+```bash
+docker compose exec backend alembic revision --autogenerate -m "what changed"
+docker compose exec backend alembic upgrade head   # or just restart the backend
+docker compose exec backend alembic check          # should report no drift
+```
+
+Declare indexes on the model (via `__table_args__`) as well as in the migration,
+or autogenerate will see them as drift and propose dropping them.
+
+### Running the tests
+
+The backend suite runs against a real PostgreSQL database rather than SQLite,
+because the models use Postgres-specific types (UUID, ARRAY, native ENUM) that
+SQLite would not exercise. Point `DATABASE_URL` at a throwaway database — never
+the one holding your recipes, since the suite truncates tables between tests:
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+DATABASE_URL=postgresql+psycopg://cookvault:cookvault@localhost:5432/cookvault pytest
+```
+
+Against the Compose stack, the simplest throwaway database is a second one on
+the same server:
+
+```bash
+docker compose exec postgres createdb -U cookvault cookvault_test
+docker compose exec -e DATABASE_URL=postgresql+psycopg://cookvault:cookvault@postgres:5432/cookvault_test \
+  backend sh -c "pip install -q -r requirements-dev.txt && pytest"
+```
+
+## CI
+
+[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) runs on every pull
+request and every push to `main`:
+
+| Job | What it catches |
+|---|---|
+| **backend** | Migrations that fail to apply or to reverse, models that drifted from their migration (`alembic check`), and API regressions (`pytest`) |
+| **frontend** | Type errors (`tsc --noEmit`), build failures, and a `package.json`/lockfile mismatch (`npm ci`) |
+| **images** | A Dockerfile that no longer builds — a broken deploy even when the app code is fine |
 
 ## Deploying on NexusBody
 
-This is a Tailscale-only homelab app — never exposed publicly. Every real service on
-NexusBody binds its container port to `127.0.0.1` only and gets fronted by
-`tailscale serve`; CookVault's `docker-compose.yml` follows the same pattern.
+This is a Tailscale-only homelab app — never exposed publicly. Every service binds
+its container port to `127.0.0.1` only and gets fronted by `tailscale serve`.
 
-1. `git clone` this repo, copy `.env.example` to `.env` and fill in real values.
-   **Important:** set `COOKVAULT_PUBLIC_API_URL` to the Tailscale address the backend
-   will actually be reachable at (e.g. `https://nexusbody.tail344870.ts.net:8420`) —
-   this gets baked into the frontend at build time, and the default (`localhost:8420`)
-   only works when viewing the page from the same machine running compose. Also set
-   `CORS_ORIGINS` to include that same origin, or the browser's requests to the
-   backend get blocked by CORS once it's not `localhost` anymore.
-2. `docker compose up -d --build`, then `docker compose exec backend alembic upgrade head`.
-3. Front both ports with Tailscale Serve (not Funnel) — e.g.
-   `tailscale serve --bg --https=3420 127.0.0.1:3420` and
-   `tailscale serve --bg --https=8420 127.0.0.1:8420` (the frontend calls the backend
-   directly from the browser, so both need to be reachable over the tailnet, not just
-   the frontend).
+1. `git clone` this repo, `cp .env.example .env`, and set `COOKVAULT_PASSWORD` if
+   you want the password gate (leaving it blank is reasonable on a tailnet).
+2. `docker compose up -d --build` — that's it; migrations run on boot.
+3. Front the single frontend port with Tailscale Serve (not Funnel):
+   `tailscale serve --bg --https=443 127.0.0.1:3420`
+
+No API URL to configure and no CORS origins to match — changing the address the app
+is served on needs no rebuild.
+
+To update: `git pull && docker compose up -d --build`. New migrations apply on
+boot. The Postgres volume (`cookvault_pgdata`) is the only durable state; back it
+up with:
+
+```bash
+docker compose exec -T postgres pg_dump -U cookvault cookvault > cookvault-backup.sql
+```
+
+(`-T` matters — without it Compose allocates a TTY and mangles the redirected
+output.)
 
 ## Ports
 
 | Service | Host port | Notes |
 |---|---|---|
-| frontend | 3420 | bound to 127.0.0.1, fronted via `tailscale serve` |
-| backend | 8420 | bound to 127.0.0.1, fronted via `tailscale serve` |
+| frontend | 3420 | bound to 127.0.0.1, fronted via `tailscale serve` — the only one needed |
+| backend | 8420 | bound to 127.0.0.1; optional, for direct API access and `/docs` |
 | postgres | — | internal to the compose network only, not exposed to the host |
+
+## Configuration
+
+Everything lives in `.env` (see [`.env.example`](./.env.example)):
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection string; must match the compose service |
+| `COOKVAULT_PASSWORD` | Optional password gate. Blank disables auth entirely |
+| `CORS_ORIGINS` | Normally empty — only needed to hit the backend port directly from a browser |
+| `AGENT_ZERO_BASE_URL` / `AGENT_ZERO_API_KEY` | Phase 2, not used yet |
+
+`BACKEND_ORIGIN` is set by `docker-compose.yml` rather than `.env`; it tells the
+frontend server where to proxy `/api/*` and is never seen by the browser.
 
 ## Auth
 
-Single optional password gate via the `COOKVAULT_PASSWORD` env var. Leave it unset to
-run with no auth at all — reasonable for a Tailscale-only, single-user app. No
-multi-tenant auth, by design (see `CookVault_MVP.md` section 7).
+Optional single-password gate via `COOKVAULT_PASSWORD`. Leave it unset to run with
+no auth at all — reasonable for a Tailscale-only, single-user app. When set, the app
+shows a login page and stores an **HMAC-signed session token** in an HttpOnly
+cookie; the password itself is never put in the cookie. Tokens expire after 30
+days. `/health` is deliberately left outside the gate, so it stays usable as a
+liveness probe. No multi-tenant auth, by design (see `CookVault_MVP.md` §7).

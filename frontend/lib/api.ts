@@ -1,14 +1,36 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8420";
+// Same-origin: the Next server proxies /api/* to the backend (see next.config.ts).
+// Nothing about the backend's address is baked into the client bundle.
+const API_BASE = "/api";
+
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly path: string,
+    readonly body: string,
+  ) {
+    super(`API ${path} failed: ${status} ${body}`);
+    this.name = "ApiError";
+  }
+}
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    credentials: "same-origin",
     cache: "no-store",
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`API ${path} failed: ${res.status} ${body}`);
+    // The password gate is opt-in, so a 401 means it's on and we're not through
+    // it. The auth endpoints are exempt: a failed login must surface its error
+    // on the login page, not reload it out from under the user.
+    const isAuthCall = path.startsWith("/auth/");
+    if (res.status === 401 && !isAuthCall && typeof window !== "undefined") {
+      const next = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.href = `/login?next=${next}`;
+    }
+    throw new ApiError(res.status, path, body);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
