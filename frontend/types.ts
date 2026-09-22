@@ -154,7 +154,11 @@ export interface MealPlanEntry {
 
 export type DraftStatus = "draft" | "ready" | "promoted" | "discarded";
 
-export type ImportMethod = "manual" | "paste" | "url_fetch" | "agent";
+/** How the content physically arrived. `video_fetch` is deliberately absent
+ *  from the picker on the new-draft page: only the video importer sets it, and
+ *  a hand-typed draft claiming it would make the one field that says "a machine
+ *  transcribed these numbers" unreliable. */
+export type ImportMethod = "manual" | "paste" | "url_fetch" | "video_fetch" | "agent";
 
 export interface Provenance {
   id: string;

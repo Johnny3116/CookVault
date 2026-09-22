@@ -11,6 +11,27 @@ dates are commit dates rather than release dates.
 
 ### Added
 
+- **Import from a cooking video** (`POST /import/video`, migration `0011`).
+  yt-dlp reads a YouTube, TikTok or Instagram link; the description *and* the
+  spoken transcript are both pulled and both kept, because the spec's first
+  listed pitfall is that captions alone miss 30–50% of a recipe. Lands in a
+  draft like every other importer.
+- Only the description is structured. A transcript is prose, and running the
+  line parser over it yields the ingredient "guanciale and you want to render
+  that slowly" — so when the description holds no recipe the draft arrives
+  empty, with the transcript attached and a note saying it could not be
+  structured, rather than full of plausible nonsense.
+- **`services/transcripts.py`**: VTT, SRT and json3, with the rolling-caption
+  fix that stops an auto-generated transcript reading as a stutter three times
+  its real length. Written captions are preferred over automatic ones.
+- `import_method=video_fetch`, because "a publisher typed this into HTML" and
+  "a machine transcribed this from speech" are different answers to how much
+  the numbers can be trusted.
+- Video import is allowlisted to the three hosts the spec names. `/import`
+  fetches a page CookVault parses itself; this hands a URL to a large extractor
+  that follows the site's own redirects, so the guard that checks the address
+  given cannot cover everywhere it then goes.
+
 - **The `/agent` tool surface** — the door Agent Zero comes in through.
   CookVault is the server, not the client, which is what made this buildable:
   an agent calling *in* needs no guess about anyone else's wire format, and
