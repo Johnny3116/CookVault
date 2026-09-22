@@ -7,3 +7,9 @@ pydantic>=2.9,<3.0
 pydantic-settings>=2.5,<3.0
 python-multipart>=0.0.9
 httpx>=0.28,<0.29
+
+# Deliberately unbounded above, unlike everything else here. yt-dlp's job is to
+# keep up with sites that change their markup without warning, and the fix for
+# a broken extractor ships as a new release -- an upper bound would pin the
+# breakage in. Metadata and subtitles only, so no ffmpeg is needed.
+yt-dlp>=2025.1.1

@@ -459,6 +459,18 @@ class ImportUrlRequest(BaseModel):
     source_title: str | None = None
 
 
+class ImportVideoRequest(BaseModel):
+    """Import a cooking video. The result is always a draft, never a recipe.
+
+    Only the hosts in video_import.SUPPORTED_HOSTS are accepted -- see that
+    module for why this is an allowlist where /import is not.
+    """
+
+    url: AnyHttpUrl
+    # Overrides the video's own title, which is often shoutier than the recipe.
+    title: str | None = None
+
+
 class ImportPasteRequest(BaseModel):
     """Import pasted recipe text."""
 
