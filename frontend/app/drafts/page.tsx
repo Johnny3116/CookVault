@@ -92,8 +92,20 @@ export default function DraftsPage() {
                 <p className="text-xs text-neutral-400">
                   updated {new Date(draft.updated_at).toLocaleString()}
                 </p>
+                {/* The note is what the proposer wanted to say to the
+                    reviewer -- the reason to open this one first. */}
+                {draft.note && (
+                  <p className="mt-1 max-w-xl text-xs italic text-neutral-500">{draft.note}</p>
+                )}
               </div>
               <div className="flex items-center gap-2">
+                {/* Who proposed it is the first thing worth knowing about a
+                    draft, so it sits next to the status rather than inside. */}
+                {draft.created_by === "agent" && (
+                  <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                    proposed by agent
+                  </span>
+                )}
                 <span className={`rounded px-2 py-0.5 text-xs ${BADGE[draft.status]}`}>
                   {draft.status}
                 </span>
