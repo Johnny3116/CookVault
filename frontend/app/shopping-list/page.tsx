@@ -257,9 +257,17 @@ export default function ShoppingListPage() {
                         )
                       }
                     />
-                    <span className={`flex-1 ${item.is_checked ? "text-neutral-400 line-through" : ""}`}>
+                    <span className={`${item.is_checked ? "text-neutral-400 line-through" : ""}`}>
                       {ingredientLabel(item)}
                     </span>
+                    {/* A hint, not a subtraction: the line is still on the
+                        list, because dropping it would silently under-buy. */}
+                    {item.in_pantry && (
+                      <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-500">
+                        in pantry
+                      </span>
+                    )}
+                    <span className="flex-1" />
                     {/* Moving a line is per-item, and "auto" hands it back to
                         the rules rather than pinning it where it happens to
                         be now. */}

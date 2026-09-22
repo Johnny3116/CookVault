@@ -235,6 +235,32 @@ class ShoppingListItemUpdate(PatchModel):
     is_checked: bool | None = None
 
 
+class PantryItemBase(BaseModel):
+    """Something you keep in. A name and a note, nothing more -- quantities
+    and expiry dates turn a cookbook into inventory software."""
+
+    name: str
+    note: str | None = None
+
+
+class PantryItemCreate(PantryItemBase):
+    pass
+
+
+class PantryItemUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"name"})
+
+    name: str | None = None
+    note: str | None = None
+
+
+class PantryItemRead(PantryItemBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
 class ShoppingListItemRead(ShoppingListItemBase):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
@@ -244,6 +270,8 @@ class ShoppingListItemRead(ShoppingListItemBase):
     # rather than stored, so correcting a rule corrects every existing line.
     aisle: ShoppingAisle = ShoppingAisle.other
     aisle_override: ShoppingAisle | None = None
+    # A hint, never a subtraction: the line stays on the list either way.
+    in_pantry: bool = False
 
 
 class ShoppingListGenerateRequest(BaseModel):

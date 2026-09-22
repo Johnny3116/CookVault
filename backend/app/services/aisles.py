@@ -28,8 +28,43 @@ class Rule:
     aisle: ShoppingAisle
 
 
-def _words(text: str) -> list[str]:
+def words(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", text.lower())
+
+
+def phrase_in(haystack: list[str], needle: list[str]) -> bool:
+    """Does `needle` appear as a consecutive run of whole words in `haystack`?
+
+    Whole words, so "ham" does not fire on "hammer"; consecutive, so "chicken
+    stock" matches "organic chicken stock" but not "chicken and beef stock".
+    Shared with the pantry, which needs exactly the same notion of "this line
+    is that thing" -- two near-identical implementations would drift.
+    """
+    if not needle:
+        return False
+    return any(
+        haystack[i : i + len(needle)] == needle
+        for i in range(len(haystack) - len(needle) + 1)
+    )
+
+
+def longest_match(name: str, terms: list[str]) -> str | None:
+    """The most specific term that matches, or None."""
+    haystack = words(name)
+    if not haystack:
+        return None
+    best: tuple[int, str] | None = None
+    for term in terms:
+        needle = words(term)
+        if not phrase_in(haystack, needle):
+            continue
+        weight = len(needle) * 1000 + len(term)
+        if best is None or weight > best[0]:
+            best = (weight, term)
+    return best[1] if best else None
+
+
+_words = words  # kept for readability at the call sites below
 
 
 def match_rule(name: str, rules: list[Rule]) -> Rule | None:
@@ -43,22 +78,14 @@ def match_rule(name: str, rules: list[Rule]) -> Rule | None:
     *why* something landed where it did -- a surprising answer should be
     traceable to the row that caused it.
     """
-    haystack = _words(name)
+    haystack = words(name)
     if not haystack:
         return None
 
     best: tuple[int, Rule] | None = None
     for rule in rules:
-        needle = _words(rule.term)
-        if not needle:
-            continue
-        # A run of words, so "chicken stock" matches "organic chicken stock"
-        # but not "chicken and beef stock".
-        found = any(
-            haystack[i : i + len(needle)] == needle
-            for i in range(len(haystack) - len(needle) + 1)
-        )
-        if not found:
+        needle = words(rule.term)
+        if not phrase_in(haystack, needle):
             continue
         # Longer terms are more specific: "chicken stock" must beat "chicken".
         weight = len(needle) * 1000 + len(rule.term)

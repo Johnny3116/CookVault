@@ -415,3 +415,30 @@ Recipe.last_cooked_on = column_property(
     .correlate_except(CookLog)
     .scalar_subquery()
 )
+
+
+class PantryItem(Base):
+    """Something you keep in.
+
+    Deliberately just a name and a note: no quantities, no expiry dates, no
+    lots. Tracking how much olive oil is left turns a cookbook into inventory
+    software, and the person who has to keep that accurate is the same person
+    who wanted to cook dinner.
+
+    Its one job is to flag a shopping line as "you probably already have this".
+    It never removes anything from a list -- silently under-buying is worse
+    than buying a second jar of cumin.
+    """
+
+    __tablename__ = "pantry_items"
+    __table_args__ = (Index("ix_pantry_items_name", "name", unique=True),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )

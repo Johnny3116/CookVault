@@ -77,7 +77,7 @@ def _clean_tables(_seeded_aisle_rules) -> None:
         )
         # Rules are editable data, so a test that edits one would otherwise
         # leak into the next. Reset to what the migration seeded.
-        conn.execute(text("TRUNCATE aisle_rules"))
+        conn.execute(text("TRUNCATE aisle_rules, pantry_items"))
         if _seeded_aisle_rules:
             conn.execute(
                 text("INSERT INTO aisle_rules (id, term, aisle) VALUES (:id, :term, CAST(:aisle AS shopping_aisle))"),

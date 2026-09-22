@@ -101,6 +101,14 @@ export const AISLES: { key: ShoppingAisle; label: string }[] = [
   { key: "other", label: "Other" },
 ];
 
+export interface PantryItem {
+  id: string;
+  name: string;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AisleRule {
   id: string;
   term: string;
@@ -125,6 +133,8 @@ export interface ShoppingListItem {
   aisle: ShoppingAisle;
   /** Set only when overridden by hand; null means "whatever the rules say". */
   aisle_override: ShoppingAisle | null;
+  /** You probably already have this. A hint only -- the line stays. */
+  in_pantry: boolean;
 }
 
 export interface RecipeFacets {

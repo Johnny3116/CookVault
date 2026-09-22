@@ -6,12 +6,14 @@ from app.routers import (
     aisles,
     alternates,
     auth,
+    backup,
     drafts,
     finder,
     history,
     import_,
     ingredients,
     meal_plan,
+    pantry,
     recipes,
     shopping_list,
     steps,
@@ -38,6 +40,8 @@ app.include_router(alternates.router)
 app.include_router(shopping_list.router)
 app.include_router(aisles.router)
 app.include_router(history.router)
+app.include_router(pantry.router)
+app.include_router(backup.router)
 app.include_router(meal_plan.router)
 app.include_router(import_.router)
 app.include_router(finder.router)
