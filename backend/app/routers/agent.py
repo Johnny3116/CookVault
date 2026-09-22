@@ -36,6 +36,7 @@ from app import models, schemas, schemas_agent as sa
 from app.agent_auth import require_agent
 from app.db import get_db
 from app.services import recipe_search
+from app.routers.drafts import _SETTLED, build_draft
 from app.services.drafts import has_errors, validate_payload
 from app.services.recipe_text import parse_recipe_text
 from app.services.web_import import SourceFetchError, fetch_page, payload_from_page
@@ -122,6 +123,30 @@ TOOLS: list[sa.ToolDescriptor] = [
         path="/agent/recipes/{recipe_id}",
         writes=False,
         summary="One saved recipe in full, with ingredients, steps, alternates and provenance.",
+    ),
+    sa.ToolDescriptor(
+        name="create_recipe_draft",
+        method="POST",
+        path="/agent/recipe-drafts",
+        writes=True,
+        summary=(
+            "Propose a recipe. It lands in John's review queue, recorded as agent-authored, "
+            "and reaches the cookbook only if he promotes it."
+        ),
+    ),
+    sa.ToolDescriptor(
+        name="get_recipe_draft",
+        method="GET",
+        path="/agent/recipe-drafts/{draft_id}",
+        writes=False,
+        summary="Read back one of your own proposals, with CookVault's current verdict on it.",
+    ),
+    sa.ToolDescriptor(
+        name="update_recipe_draft",
+        method="PATCH",
+        path="/agent/recipe-drafts/{draft_id}",
+        writes=True,
+        summary="Revise one of your own proposals, while it is still unsettled.",
     ),
 ]
 
@@ -233,3 +258,124 @@ def get_recipe(recipe_id: uuid.UUID, db: Session = Depends(get_db)):
     if recipe is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found")
     return recipe
+
+
+# --------------------------------------------------------------------------
+# proposing
+# --------------------------------------------------------------------------
+
+
+def _agent_draft_or_404(draft_id: uuid.UUID, db: Session) -> models.RecipeDraft:
+    """The agent's own draft, or nothing.
+
+    A draft John wrote is invisible here rather than forbidden: 404 and 403
+    differ only in whether they confirm the row exists, and there is no reason
+    for this surface to confirm anything about drafts it does not own.
+    """
+    draft = db.get(models.RecipeDraft, draft_id)
+    if draft is None or draft.created_by != models.DraftAuthor.agent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Draft not found")
+    return draft
+
+
+def _draft_response(draft: models.RecipeDraft) -> sa.AgentDraftResponse:
+    valid, issues = _issues(draft.payload)
+    return sa.AgentDraftResponse(
+        id=draft.id,
+        status=draft.status,
+        title=draft.title,
+        payload=draft.payload,
+        created_at=draft.created_at,
+        updated_at=draft.updated_at,
+        valid=valid,
+        issues=issues,
+    )
+
+
+def _revalidate(draft: models.RecipeDraft) -> None:
+    """Record the verdict on the payload as it now stands.
+
+    Done on every write rather than left to a second call, because the agent's
+    next move depends on the answer and a round trip it can skip is a round
+    trip it will skip. It is a convenience, not the gate -- promotion validates
+    again and does not trust this.
+    """
+    draft.status = (
+        models.DraftStatus.ready
+        if not has_errors(validate_payload(draft.payload))
+        else models.DraftStatus.draft
+    )
+
+
+@router.post(
+    "/recipe-drafts",
+    response_model=sa.AgentDraftResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_recipe_draft(payload: sa.CreateRecipeDraftRequest, db: Session = Depends(get_db)):
+    """Propose a recipe. It lands in John's review queue and nowhere else.
+
+    An invalid payload is accepted and reported, not refused. A draft is
+    allowed to be wrong -- that is the entire reason the queue exists -- and
+    rejecting the proposals worth reviewing would leave the agent guessing at
+    what CookVault wanted instead of being told.
+    """
+    provenance = schemas.ProvenanceCreate(
+        **payload.provenance.model_dump(),
+        # Not the caller's to claim. The one field that says "a model touched
+        # this" is worthless if the model can set it to something else.
+        import_method=models.ImportMethod.agent,
+        # A frozen copy of what the agent proposed, so John can still see it
+        # after he has edited the draft into shape.
+        extracted_payload=payload.payload,
+    )
+    draft = build_draft(payload.title, payload.payload, provenance)
+    draft.created_by = models.DraftAuthor.agent
+    draft.note = payload.note
+    _revalidate(draft)
+
+    db.add(draft)
+    db.commit()
+    db.refresh(draft)
+    return _draft_response(draft)
+
+
+@router.get("/recipe-drafts/{draft_id}", response_model=sa.AgentDraftResponse)
+def get_recipe_draft(draft_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Read back a proposal, with CookVault's current verdict on it.
+
+    Only the agent's own. Listing the queue is not on this surface: what John
+    is working on is not the agent's business.
+    """
+    return _draft_response(_agent_draft_or_404(draft_id, db))
+
+
+@router.patch("/recipe-drafts/{draft_id}", response_model=sa.AgentDraftResponse)
+def update_recipe_draft(
+    draft_id: uuid.UUID, payload: sa.UpdateRecipeDraftRequest, db: Session = Depends(get_db)
+):
+    """Revise a proposal that hasn't been settled yet.
+
+    Once John has promoted or discarded something the answer is 409: review is
+    a one-way door, and an agent that could reopen a decision would make the
+    decision provisional.
+    """
+    draft = _agent_draft_or_404(draft_id, db)
+    if draft.status in _SETTLED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"This draft is {draft.status.value} and can no longer be changed.",
+        )
+
+    data = payload.model_dump(exclude_unset=True)
+    if "title" in data:
+        draft.title = data["title"]
+    if "note" in data:
+        draft.note = data["note"]
+    if data.get("payload") is not None:
+        draft.payload = data["payload"]
+    _revalidate(draft)
+
+    db.commit()
+    db.refresh(draft)
+    return _draft_response(draft)

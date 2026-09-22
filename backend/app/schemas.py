@@ -10,6 +10,7 @@ from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, model_validator
 from app.models import (
     AlternateType,
     ShoppingAisle,
+    DraftAuthor,
     DraftStatus,
     ImportMethod,
     IngredientCategory,
@@ -364,6 +365,7 @@ class RecipeDraftCreate(BaseModel):
     # worth reviewing are the ones that can never be stored.
     payload: dict = {}
     provenance: ProvenanceCreate | None = None
+    note: str | None = None
 
 
 class RecipeDraftUpdate(PatchModel):
@@ -371,6 +373,7 @@ class RecipeDraftUpdate(PatchModel):
 
     title: str | None = None
     payload: dict | None = None
+    note: str | None = None
 
 
 class RecipeDraftSummary(BaseModel):
@@ -378,6 +381,11 @@ class RecipeDraftSummary(BaseModel):
     id: uuid.UUID
     title: str | None = None
     status: DraftStatus
+    # Which door it came through. Surfaced to the reviewer because "a model
+    # proposed this" is the first thing worth knowing about a draft.
+    created_by: DraftAuthor = DraftAuthor.human
+    # What the proposer wanted to say about it. Never part of the recipe.
+    note: str | None = None
     promoted_recipe_id: uuid.UUID | None = None
     promoted_at: datetime | None = None
     created_at: datetime

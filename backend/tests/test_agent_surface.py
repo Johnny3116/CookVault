@@ -114,6 +114,9 @@ EXPECTED_ROUTES = {
     ("POST", "/agent/parse-recipe-source"),
     ("POST", "/agent/search-recipes"),
     ("GET", "/agent/recipes/{recipe_id}"),
+    ("POST", "/agent/recipe-drafts"),
+    ("GET", "/agent/recipe-drafts/{draft_id}"),
+    ("PATCH", "/agent/recipe-drafts/{draft_id}"),
 }
 
 
@@ -152,8 +155,10 @@ def test_the_manifest_says_what_the_agent_cannot_do(agent):
 
     assert body["contract_version"] >= 1
     assert body["guarantees"]
-    # Read tools are marked as such; the agent shouldn't have to infer it.
-    assert all(tool["writes"] is False for tool in body["tools"])
+    # Writes are marked as such; the agent shouldn't have to infer which of
+    # its tools change anything.
+    writing = {t["name"] for t in body["tools"] if t["writes"]}
+    assert writing == {"create_recipe_draft", "update_recipe_draft"}
 
 
 def test_promotion_is_not_on_this_surface(agent, draft_payload):

@@ -27,12 +27,26 @@ from app.schemas import CalendarDate, DraftIssueRead
 CONTRACT_VERSION = 1
 
 
+class AgentRequest(BaseModel):
+    """Base for everything the agent sends.
+
+    `extra="forbid"` rather than pydantic's default of quietly dropping unknown
+    fields. This is a contract with a program on another machine: a misspelled
+    field, or one the agent believes exists and does not, should come back as a
+    422 naming it. Ignored input is the failure mode where both sides think the
+    call worked and only one of them is right -- and the field most likely to
+    be tried is `import_method`, which this surface will never accept.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+
 # --------------------------------------------------------------------------
 # parse_recipe_source
 # --------------------------------------------------------------------------
 
 
-class ParseSourceRequest(BaseModel):
+class ParseSourceRequest(AgentRequest):
     """Raw material in, CookVault's own reading of it out.
 
     Exactly one of `text` or `url`. Offering the parser as a tool means the
@@ -60,7 +74,7 @@ class ParseSourceResponse(BaseModel):
 # --------------------------------------------------------------------------
 
 
-class SearchRecipesRequest(BaseModel):
+class SearchRecipesRequest(AgentRequest):
     """Narrow the library. Every field is optional and means "don't care".
 
     `includes_ingredients` is all-of, and is the "use up the chicken" question,
@@ -116,7 +130,7 @@ class SearchRecipesResponse(BaseModel):
 # --------------------------------------------------------------------------
 
 
-class AgentProvenance(BaseModel):
+class AgentProvenance(AgentRequest):
     """Where the agent got this, and what did the reading.
 
     `import_method` is not offered: anything arriving through this surface is
@@ -135,7 +149,7 @@ class AgentProvenance(BaseModel):
     agent_version: str | None = Field(default=None, max_length=64)
 
 
-class CreateRecipeDraftRequest(BaseModel):
+class CreateRecipeDraftRequest(AgentRequest):
     title: str | None = Field(default=None, max_length=255)
     payload: dict
     provenance: AgentProvenance = AgentProvenance()
@@ -144,7 +158,7 @@ class CreateRecipeDraftRequest(BaseModel):
     note: str | None = None
 
 
-class UpdateRecipeDraftRequest(BaseModel):
+class UpdateRecipeDraftRequest(AgentRequest):
     title: str | None = Field(default=None, max_length=255)
     payload: dict | None = None
     note: str | None = None
@@ -175,7 +189,7 @@ class AgentDraftResponse(BaseModel):
 # --------------------------------------------------------------------------
 
 
-class SuggestMealPlanRequest(BaseModel):
+class SuggestMealPlanRequest(AgentRequest):
     start: CalendarDate
     days: int = Field(default=7, ge=1, le=28)
     meal_type: MealType = MealType.dinner
@@ -206,7 +220,7 @@ class SuggestMealPlanResponse(BaseModel):
     note: str
 
 
-class ProposedMeal(BaseModel):
+class ProposedMeal(AgentRequest):
     date: CalendarDate
     recipe_id: uuid.UUID
     meal_type: MealType = MealType.dinner
@@ -216,7 +230,7 @@ class ProposedMeal(BaseModel):
     reason: str | None = None
 
 
-class CreateMealPlanDraftRequest(BaseModel):
+class CreateMealPlanDraftRequest(AgentRequest):
     title: str | None = Field(default=None, max_length=255)
     meals: list[ProposedMeal]
     note: str | None = None

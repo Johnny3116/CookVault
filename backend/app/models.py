@@ -64,6 +64,19 @@ class DraftStatus(str, enum.Enum):
     discarded = "discarded"
 
 
+class DraftAuthor(str, enum.Enum):
+    """Who put a draft in the queue.
+
+    Recorded rather than inferred from provenance. Provenance is optional and
+    is a claim about the *source*; this is a fact about the caller, established
+    by which door the request came through. It is what makes "the agent cannot
+    edit a draft John started" enforceable instead of merely intended.
+    """
+
+    human = "human"
+    agent = "agent"
+
+
 class ImportMethod(str, enum.Enum):
     """How the content physically arrived, separate from where it came from.
 
@@ -282,6 +295,15 @@ class RecipeDraft(Base):
     # at rest: a draft is allowed to be wrong -- that is what validation is for
     # -- and columns would reject the very payloads worth reviewing.
     payload: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    # Which door this came through. The agent may only edit its own drafts.
+    created_by: Mapped[DraftAuthor] = mapped_column(
+        Enum(DraftAuthor, name="draft_author"), default=DraftAuthor.human, nullable=False
+    )
+    # A message to the reviewer: why this, and what the proposer was unsure
+    # about. It travels with the draft and never becomes part of the recipe --
+    # "I couldn't tell if that was 2 tsp or 2 tbsp" is about the proposal, not
+    # about the dish.
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
     promoted_recipe_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("recipes.id", ondelete="SET NULL"), nullable=True
     )
