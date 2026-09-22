@@ -37,6 +37,36 @@ request/response JSON contract hasn't been verified yet — see
 - Frontend: Next.js (App Router) + Tailwind
 - Deployment: Docker Compose
 
+## The cooking pipeline
+
+Scaling, planning and shopping are one path, not three features:
+
+```
+recipe (canonical)
+    ↓  effective_scale = planned servings / recipe servings
+scaled quantities
+    ↓  normalize units
+    ↓  merge compatible amounts
+generated shopping items
+```
+
+**Scaling is nondestructive.** The stored recipe is always canonical; scaling
+happens at read time via `GET /recipes/{id}?servings=N`, and the response
+carries `applied_scale` so the UI can say what it did.
+
+**The plan stores target servings, not a multiplier.** "Make this for 8" stays
+meaningful if the recipe's own yield is later corrected from 4 to 6, whereas a
+stored `scale = 2.0` silently becomes wrong. A recipe that never recorded its
+own servings can't be scaled from, so it comes back unchanged rather than being
+scaled from a guessed baseline.
+
+**Rounding happens once, at the end.** Scale, convert and merge all run at full
+Decimal precision; quantizing mid-pipeline compounds error across a week.
+
+The shared logic lives in `backend/app/services/` so the recipe endpoint, the
+shopping-list endpoint and eventually the import path all call one
+implementation.
+
 ## Units and the shopping list
 
 Recipes mix cups, grams, ounces and millilitres, and the shopping list has to

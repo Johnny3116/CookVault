@@ -5,13 +5,18 @@ import Link from "next/link";
 
 import { apiFetch } from "@/lib/api";
 import { addDays, fmtDate, startOfWeek, weekDays } from "@/lib/dates";
-import type { MealPlanEntry, RecipeSummary } from "@/types";
+import type { MealPlanEntry, MealType, RecipeSummary } from "@/types";
+
+const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 
 export default function CalendarPage() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [entries, setEntries] = useState<MealPlanEntry[]>([]);
   const [recipes, setRecipes] = useState<RecipeSummary[]>([]);
   const [selectedRecipeId, setSelectedRecipeId] = useState("");
+  // Servings planned for the day. Blank means "as the recipe is written".
+  const [plannedServings, setPlannedServings] = useState("");
+  const [mealType, setMealType] = useState<MealType | "">("dinner");
   const [error, setError] = useState<string | null>(null);
 
   const days = weekDays(weekStart);
@@ -43,6 +48,7 @@ export default function CalendarPage() {
   }
 
   const recipeTitle = (id: string) => recipes.find((r) => r.id === id)?.title ?? "Unknown recipe";
+  const selectedRecipe = recipes.find((r) => r.id === selectedRecipeId);
 
   const weekLabel = `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${addDays(
     weekStart,
@@ -88,19 +94,49 @@ export default function CalendarPage() {
         )}
       </div>
 
-      <select
-        value={selectedRecipeId}
-        onChange={(e) => setSelectedRecipeId(e.target.value)}
-        aria-label="Recipe to assign"
-        className="rounded border border-neutral-300 px-3 py-2 text-sm"
-      >
-        <option value="">Select a recipe to assign…</option>
-        {recipes.map((r) => (
-          <option key={r.id} value={r.id}>
-            {r.title}
-          </option>
-        ))}
-      </select>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={selectedRecipeId}
+          onChange={(e) => {
+            setSelectedRecipeId(e.target.value);
+            setPlannedServings("");
+          }}
+          aria-label="Recipe to assign"
+          className="rounded border border-neutral-300 px-3 py-2 text-sm"
+        >
+          <option value="">Select a recipe to assign…</option>
+          {recipes.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.title}
+            </option>
+          ))}
+        </select>
+        <select
+          value={mealType}
+          onChange={(e) => setMealType(e.target.value as MealType | "")}
+          aria-label="Meal"
+          className="rounded border border-neutral-300 px-3 py-2 text-sm"
+        >
+          <option value="">Any meal</option>
+          {MEAL_TYPES.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+        <input
+          type="number"
+          min={1}
+          placeholder={selectedRecipe?.servings ? `${selectedRecipe.servings} (as written)` : "servings"}
+          value={plannedServings}
+          onChange={(e) => setPlannedServings(e.target.value)}
+          aria-label="Servings to plan"
+          className="w-40 rounded border border-neutral-300 px-3 py-2 text-sm"
+        />
+        <span className="text-xs text-neutral-500">
+          Servings carry through to the shopping list.
+        </span>
+      </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -119,9 +155,21 @@ export default function CalendarPage() {
               <ul className="space-y-1">
                 {dayEntries.map((entry) => (
                   <li key={entry.id} className="flex items-start justify-between gap-1 text-xs">
-                    <Link href={`/recipes/${entry.recipe_id}`} className="hover:underline">
-                      {recipeTitle(entry.recipe_id)}
-                    </Link>
+                    <span className="min-w-0">
+                      <Link
+                        href={`/recipes/${entry.recipe_id}${entry.servings ? `?servings=${entry.servings}` : ""}`}
+                        className="hover:underline"
+                      >
+                        {recipeTitle(entry.recipe_id)}
+                      </Link>
+                      {(entry.servings || entry.meal_type) && (
+                        <span className="block text-[10px] text-neutral-400">
+                          {[entry.meal_type, entry.servings ? `serves ${entry.servings}` : null]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      )}
+                    </span>
                     <button
                       onClick={() => run(() => apiFetch(`/meal-plan/${entry.id}`, { method: "DELETE" }))}
                       aria-label={`Remove ${recipeTitle(entry.recipe_id)}`}
@@ -141,6 +189,8 @@ export default function CalendarPage() {
                         date: fmtDate(day),
                         recipe_id: selectedRecipeId,
                         mode: "manual",
+                        meal_type: mealType || null,
+                        servings: plannedServings ? Number(plannedServings) : null,
                       }),
                     }),
                   )

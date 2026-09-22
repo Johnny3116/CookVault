@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
+import { addDays, fmtDate, startOfWeek } from "@/lib/dates";
 import { ingredientLabel } from "@/lib/format";
 import type { IngredientCategory, RecipeSummary, ShoppingListItem } from "@/types";
 
@@ -25,6 +26,7 @@ export default function ShoppingListPage() {
     unit: "",
     category: "misc" as IngredientCategory,
   });
+  const [weekOffset, setWeekOffset] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,7 +69,45 @@ export default function ShoppingListPage() {
 
       <section className="rounded border border-neutral-200 p-4">
         <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-neutral-500">
-          Build from recipes
+          Build from this week's plan
+        </h2>
+        <p className="mb-3 text-xs text-neutral-500">
+          Buys the servings actually planned for each day, scaling each recipe from its own yield.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => {
+              const start = startOfWeek(weekOffset === 0 ? new Date() : addDays(new Date(), weekOffset * 7));
+              run(() =>
+                apiFetch("/shopping-list/generate", {
+                  method: "POST",
+                  body: JSON.stringify({
+                    start: fmtDate(start),
+                    end: fmtDate(addDays(start, 6)),
+                  }),
+                }),
+              );
+            }}
+            disabled={busy}
+            className="rounded bg-neutral-800 px-4 py-2 text-sm text-white disabled:opacity-50"
+          >
+            Generate from {weekOffset === 0 ? "this week" : "next week"}
+          </button>
+          <select
+            value={weekOffset}
+            onChange={(e) => setWeekOffset(Number(e.target.value))}
+            aria-label="Which week"
+            className="rounded border border-neutral-300 px-3 py-2 text-sm"
+          >
+            <option value={0}>This week</option>
+            <option value={1}>Next week</option>
+          </select>
+        </div>
+      </section>
+
+      <section className="rounded border border-neutral-200 p-4">
+        <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-neutral-500">
+          Or build from specific recipes
         </h2>
         <p className="mb-3 text-xs text-neutral-500">
           Duplicate ingredients are combined. Generating again replaces these rows and leaves

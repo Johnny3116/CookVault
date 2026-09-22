@@ -35,6 +35,21 @@ def create_entry(payload: schemas.MealPlanEntryCreate, db: Session = Depends(get
     return entry
 
 
+@router.patch("/{entry_id}", response_model=schemas.MealPlanEntryRead)
+def update_entry(
+    entry_id: uuid.UUID, payload: schemas.MealPlanEntryUpdate, db: Session = Depends(get_db)
+):
+    """Move an entry, or change the servings or meal slot planned for it."""
+    entry = db.get(models.MealPlanEntry, entry_id)
+    if entry is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(entry, field, value)
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_entry(entry_id: uuid.UUID, db: Session = Depends(get_db)):
     entry = db.get(models.MealPlanEntry, entry_id)

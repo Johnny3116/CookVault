@@ -48,6 +48,13 @@ class MealPlanMode(str, enum.Enum):
     manual = "manual"
 
 
+class MealType(str, enum.Enum):
+    breakfast = "breakfast"
+    lunch = "lunch"
+    dinner = "dinner"
+    snack = "snack"
+
+
 class Recipe(Base):
     __tablename__ = "recipes"
 
@@ -164,5 +171,12 @@ class MealPlanEntry(Base):
     mode: Mapped[MealPlanMode] = mapped_column(
         Enum(MealPlanMode, name="meal_plan_mode"), default=MealPlanMode.manual, nullable=False
     )
+    meal_type: Mapped[MealType | None] = mapped_column(
+        Enum(MealType, name="meal_type"), nullable=True
+    )
+    # Servings wanted on this date. None means "as the recipe is written".
+    # Stored as a target rather than a multiplier so it stays meaningful if the
+    # recipe's own yield is later corrected.
+    servings: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     recipe: Mapped[Recipe] = relationship(back_populates="meal_plan_entries")

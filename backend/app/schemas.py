@@ -6,7 +6,12 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models import AlternateType, IngredientCategory, MealPlanMode, SourceType
+from app.models import AlternateType, IngredientCategory, MealPlanMode, MealType, SourceType
+
+# A field named `date` that carries a default puts `date = <default>` in its
+# class body, which shadows the imported type when the annotation is resolved.
+# Annotate such fields with this alias instead.
+CalendarDate = date
 
 
 class IngredientBase(BaseModel):
@@ -145,6 +150,10 @@ class RecipeDetail(RecipeSummary):
     ingredients: list[IngredientRead] = []
     steps: list[StepRead] = []
     alternates: list[AlternateRead] = []
+    # Present when the response has been scaled away from the stored recipe.
+    # The stored recipe is always canonical; scaling happens at read time.
+    scaled_to_servings: int | None = None
+    applied_scale: Decimal | None = None
 
 
 class ShoppingListItemBase(BaseModel):
@@ -175,17 +184,35 @@ class ShoppingListItemRead(ShoppingListItemBase):
 
 
 class ShoppingListGenerateRequest(BaseModel):
-    recipe_ids: list[uuid.UUID]
+    """What to shop for: ad-hoc recipes, a span of the meal plan, or both.
+
+    Meal-plan entries carry their own planned servings, so generating from a
+    week buys the amounts actually planned. Bare recipe_ids are bought as the
+    recipe is written.
+    """
+
+    recipe_ids: list[uuid.UUID] = []
+    start: date | None = None
+    end: date | None = None
 
 
 class MealPlanEntryBase(BaseModel):
     date: date
     recipe_id: uuid.UUID
     mode: MealPlanMode = MealPlanMode.manual
+    meal_type: MealType | None = None
+    # Servings wanted on the day; None means "as the recipe is written".
+    servings: int | None = None
 
 
 class MealPlanEntryCreate(MealPlanEntryBase):
     pass
+
+
+class MealPlanEntryUpdate(BaseModel):
+    date: CalendarDate | None = None
+    meal_type: MealType | None = None
+    servings: int | None = None
 
 
 class MealPlanEntryRead(MealPlanEntryBase):

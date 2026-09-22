@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.auth import require_auth
 from app.db import get_db
+from app.services.scaling import effective_scale, scale_quantity
+from app.units import tidy
 
 router = APIRouter(prefix="/recipes", tags=["recipes"], dependencies=[Depends(require_auth)])
 
@@ -84,8 +86,48 @@ def create_recipe(payload: schemas.RecipeCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{recipe_id}", response_model=schemas.RecipeDetail)
-def get_recipe(recipe_id: uuid.UUID, db: Session = Depends(get_db)):
-    return _get_recipe_or_404(recipe_id, db)
+def get_recipe(
+    recipe_id: uuid.UUID,
+    servings: int | None = None,
+    db: Session = Depends(get_db),
+):
+    """Read a recipe, optionally scaled to a target number of servings.
+
+    Scaling is nondestructive -- the stored recipe is untouched and only the
+    response is scaled. A recipe that doesn't record its own yield can't be
+    scaled from, so it comes back unchanged with applied_scale left null
+    rather than being scaled from a guessed baseline.
+    """
+    recipe = _get_recipe_or_404(recipe_id, db)
+    if servings is None:
+        return recipe
+
+    if servings <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="servings must be greater than zero",
+        )
+
+    scale = effective_scale(recipe.servings, servings)
+    detail = schemas.RecipeDetail.model_validate(recipe)
+    if scale == 1:
+        # Either the target matches, or the recipe has no yield to scale from.
+        return detail
+
+    detail.ingredients = [
+        ingredient.model_copy(
+            update={"quantity": _tidy_optional(scale_quantity(ingredient.quantity, scale))}
+        )
+        for ingredient in detail.ingredients
+    ]
+    detail.servings = servings
+    detail.scaled_to_servings = servings
+    detail.applied_scale = tidy(scale)
+    return detail
+
+
+def _tidy_optional(quantity):
+    return None if quantity is None else tidy(quantity)
 
 
 @router.patch("/{recipe_id}", response_model=schemas.RecipeDetail)

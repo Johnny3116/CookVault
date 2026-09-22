@@ -129,7 +129,7 @@ class Measure:
     unit: str | None
 
 
-def _tidy(value: Decimal) -> Decimal:
+def tidy(value: Decimal) -> Decimal:
     """Round to the 3 decimal places the NUMERIC(10,3) columns hold, then drop
     trailing zeros so 2.000 reads as 2."""
     rounded = value.quantize(Decimal("0.001"))
@@ -180,7 +180,7 @@ def merge(measures: list[Measure]) -> list[Measure]:
 
         if key.startswith("raw:"):
             total = sum((m.quantity for m in known), Decimal(0))
-            merged.append(Measure(quantity=_tidy(total), unit=group[0].unit))
+            merged.append(Measure(quantity=tidy(total), unit=group[0].unit))
             continue
 
         base_total = Decimal(0)
@@ -196,6 +196,6 @@ def merge(measures: list[Measure]) -> list[Measure]:
         # "ea" is an implementation detail for "no unit"; don't surface it if
         # the recipe didn't write one.
         display_label = None if display == "ea" and not (known[0].unit or "").strip() else display
-        merged.append(Measure(quantity=_tidy(base_total / display_factor), unit=display_label))
+        merged.append(Measure(quantity=tidy(base_total / display_factor), unit=display_label))
 
     return merged

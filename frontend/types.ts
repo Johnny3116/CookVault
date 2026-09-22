@@ -54,7 +54,13 @@ export interface RecipeDetail extends RecipeSummary {
   ingredients: Ingredient[];
   steps: Step[];
   alternates: Alternate[];
+  /** Set when the response was scaled at read time; the stored recipe is
+   *  always canonical. Null means "as written". */
+  scaled_to_servings: number | null;
+  applied_scale: string | null;
 }
+
+export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
 
 export interface ShoppingListItem {
   id: string;
@@ -80,4 +86,7 @@ export interface MealPlanEntry {
   date: string;
   recipe_id: string;
   mode: MealPlanMode;
+  meal_type: MealType | null;
+  /** Servings wanted on the day; null means "as the recipe is written". */
+  servings: number | null;
 }

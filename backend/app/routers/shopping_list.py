@@ -1,5 +1,4 @@
 import uuid
-from collections import OrderedDict
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -7,7 +6,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.auth import require_auth
 from app.db import get_db
-from app.units import Measure, merge
+from app.services.shopping_list import PlannedRecipe, build_items
 
 router = APIRouter(prefix="/shopping-list", tags=["shopping-list"], dependencies=[Depends(require_auth)])
 
@@ -26,56 +25,69 @@ def list_items(db: Session = Depends(get_db)):
 
 
 @router.post("/generate", response_model=list[schemas.ShoppingListItemRead])
-def generate_from_recipes(payload: schemas.ShoppingListGenerateRequest, db: Session = Depends(get_db)):
-    """Rebuild the generated half of the list from the given recipes.
+def generate(payload: schemas.ShoppingListGenerateRequest, db: Session = Depends(get_db)):
+    """Rebuild the generated half of the list.
 
-    Duplicate ingredients are merged: two recipes wanting a cup of stock each
-    become one "2 cup stock" line rather than two lines to reconcile in the
-    shop. Amounts in compatible units are summed (see app/units.py); amounts
-    that can't convert -- "2 cloves" against "1 tbsp" -- stay as separate
-    lines rather than being silently added together.
+    Sources combine: `start`/`end` pull the meal plan for that span and buy the
+    servings actually planned for each day, while bare `recipe_ids` are bought
+    as written. Duplicate ingredients are merged across everything -- two
+    recipes wanting a cup of stock become one "2 cup" line rather than two
+    lines to reconcile in the shop. Amounts that can't convert stay separate
+    rather than being silently added together.
 
     Calling this again replaces what the last call produced and leaves
-    hand-added items alone, so generating twice gives the same list instead of
-    doubling it.
+    hand-added items alone, so generating twice gives the same list.
     """
-    recipes = db.query(models.Recipe).filter(models.Recipe.id.in_(payload.recipe_ids)).all()
-    if len(recipes) != len(set(payload.recipe_ids)):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more recipes not found")
+    if (payload.start is None) != (payload.end is None):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start and end must be given together",
+        )
+    if payload.start and payload.end and payload.start > payload.end:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start must not be after end",
+        )
+
+    planned: list[PlannedRecipe] = []
+
+    if payload.start and payload.end:
+        entries = (
+            db.query(models.MealPlanEntry)
+            .filter(models.MealPlanEntry.date >= payload.start)
+            .filter(models.MealPlanEntry.date <= payload.end)
+            .order_by(models.MealPlanEntry.date)
+            .all()
+        )
+        planned.extend(
+            PlannedRecipe(recipe=entry.recipe, target_servings=entry.servings) for entry in entries
+        )
+
+    if payload.recipe_ids:
+        recipes = db.query(models.Recipe).filter(models.Recipe.id.in_(payload.recipe_ids)).all()
+        if len(recipes) != len(set(payload.recipe_ids)):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="One or more recipes not found"
+            )
+        by_id = {recipe.id: recipe for recipe in recipes}
+        # Preserve the caller's order rather than the database's.
+        planned.extend(PlannedRecipe(recipe=by_id[rid]) for rid in payload.recipe_ids)
 
     db.query(models.ShoppingListItem).filter(
         models.ShoppingListItem.is_generated.is_(True)
     ).delete(synchronize_session=False)
 
-    # Group by name and category: the same word in two categories (olive oil
-    # as a pantry good in one recipe, a sauce in another) is two shopping
-    # lines, and merging them would put it in an arbitrary column.
-    grouped: OrderedDict[tuple[str, models.IngredientCategory], dict] = OrderedDict()
-    for recipe in recipes:
-        for ingredient in recipe.ingredients:
-            key = (ingredient.name.strip().lower(), ingredient.category)
-            group = grouped.setdefault(
-                key,
-                {"name": ingredient.name.strip(), "measures": [], "recipe_ids": set()},
+    for item in build_items(planned):
+        db.add(
+            models.ShoppingListItem(
+                recipe_id=item.recipe_id,
+                name=item.name,
+                quantity=item.quantity,
+                unit=item.unit,
+                category=item.category,
+                is_generated=True,
             )
-            group["measures"].append(Measure(quantity=ingredient.quantity, unit=ingredient.unit))
-            group["recipe_ids"].add(recipe.id)
-
-    for (_, category), group in grouped.items():
-        # Provenance only survives when a single recipe contributed; a merged
-        # line has no one recipe to attribute it to.
-        sole_recipe = next(iter(group["recipe_ids"])) if len(group["recipe_ids"]) == 1 else None
-        for measure in merge(group["measures"]):
-            db.add(
-                models.ShoppingListItem(
-                    recipe_id=sole_recipe,
-                    name=group["name"],
-                    quantity=measure.quantity,
-                    unit=measure.unit,
-                    category=category,
-                    is_generated=True,
-                )
-            )
+        )
 
     db.commit()
     return _all_items(db)

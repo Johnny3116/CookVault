@@ -11,6 +11,21 @@ dates are commit dates rather than release dates.
 
 ### Added
 
+- Recipe scaling. `GET /recipes/{id}?servings=N` returns the recipe scaled to a
+  target, leaving the stored recipe canonical; the response reports the scale
+  applied. A recipe with no recorded yield comes back unchanged rather than
+  being scaled from a guessed baseline.
+- Meal plan entries carry planned servings and a meal slot (migration `0004`).
+  Servings are stored as a target rather than a multiplier, so they stay
+  meaningful if the recipe's own yield is later corrected.
+- `POST /shopping-list/generate` accepts a `start`/`end` span and buys the
+  servings actually planned for each day, scaling each recipe from its own
+  yield before normalizing and merging. Spans and ad-hoc `recipe_ids` combine
+  in one call.
+- `PATCH /meal-plan/{id}` to move an entry or change its servings or meal slot.
+- `backend/app/services/` — the domain layer shared by recipe scaling and
+  shopping-list generation, extracted at the point a second real caller
+  appeared rather than in advance.
 - Unit normalization layer (`backend/app/units.py`), the thing spec §7 flags as
   the trap to solve early: alias resolution, exact Decimal conversion within a
   dimension, and merge rules that refuse to invent numbers. Mass and volume

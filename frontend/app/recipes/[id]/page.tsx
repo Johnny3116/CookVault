@@ -21,14 +21,18 @@ export default function RecipeDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const [recipe, setRecipe] = useState<RecipeDetailType | null>(null);
+  // Null means "as written". Scaling is a read-time transform: the server
+  // returns scaled quantities and the stored recipe never changes.
+  const [servings, setServings] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiFetch<RecipeDetailType>(`/recipes/${params.id}`)
+    const query = servings === null ? "" : `?servings=${servings}`;
+    apiFetch<RecipeDetailType>(`/recipes/${params.id}${query}`)
       .then(setRecipe)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load recipe"));
-  }, [params.id]);
+  }, [params.id, servings]);
 
   async function toggleFavorite() {
     if (!recipe) return;
@@ -66,6 +70,13 @@ export default function RecipeDetailPage() {
 
   const byCategory = (category: IngredientCategory) =>
     recipe.ingredients.filter((i) => i.category === category);
+
+  // A recipe that never recorded its own yield has no baseline to scale from.
+  const canScale = (recipe.scaled_to_servings ?? recipe.servings ?? 0) > 0;
+  const baseServings = recipe.scaled_to_servings
+    ? Math.round(recipe.scaled_to_servings / Number(recipe.applied_scale ?? 1))
+    : recipe.servings;
+  const isScaled = recipe.scaled_to_servings !== null;
 
   const meta = [
     recipe.prep_time ? `${recipe.prep_time}m prep` : null,
@@ -121,6 +132,50 @@ export default function RecipeDetailPage() {
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <div className="flex flex-wrap items-center gap-2 rounded border border-neutral-200 p-3">
+        <span className="text-sm font-medium">Make for</span>
+        {canScale ? (
+          <>
+            {[0.5, 1, 1.5, 2].map((multiplier) => {
+              const target = Math.round((baseServings ?? 0) * multiplier);
+              const active = (recipe.scaled_to_servings ?? recipe.servings) === target;
+              return (
+                <button
+                  key={multiplier}
+                  onClick={() => setServings(multiplier === 1 ? null : target)}
+                  className={`rounded border px-3 py-1 text-sm ${
+                    active ? "border-neutral-800 bg-neutral-800 text-white" : "border-neutral-300"
+                  }`}
+                >
+                  {multiplier}×
+                </button>
+              );
+            })}
+            <input
+              type="number"
+              min={1}
+              aria-label="Servings"
+              value={recipe.scaled_to_servings ?? recipe.servings ?? ""}
+              onChange={(e) => {
+                const value = Number(e.target.value);
+                setServings(Number.isFinite(value) && value > 0 ? value : null);
+              }}
+              className="w-20 rounded border border-neutral-300 px-2 py-1 text-sm"
+            />
+            <span className="text-sm text-neutral-500">servings</span>
+            {isScaled && (
+              <span className="text-xs text-neutral-500">
+                scaled {recipe.applied_scale}× from {baseServings} — the saved recipe is unchanged
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="text-sm text-neutral-500">
+            Set a servings count on this recipe to scale it.
+          </span>
+        )}
+      </div>
 
       <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
         {COLUMNS.map((column) => (
