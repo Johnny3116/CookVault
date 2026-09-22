@@ -13,19 +13,25 @@ generates shopping checklists, and plans meals on a calendar.
 delete, favorite), the four-column recipe detail page, alternates, shopping lists
 grouped by aisle, meal planning by hand and by proposal, nondestructive scaling,
 the draft review queue that everything imported passes through, import from a URL
-or pasted text, cooking history, a pantry, whole-library backup and restore, and
-the `/agent` tool surface Agent Zero calls in through.
+or pasted text, import from a cooking video's description and transcript,
+cooking history, a pantry, whole-library backup and restore, and the `/agent`
+tool surface Agent Zero calls in through.
 
 **Auto-fill meal planning is built and needed no model at all.** "Diverse" is
 arithmetic over the cook log, so CookVault does it itself and shows its working
 — see [Proposed weeks](#proposed-weeks-auto-fill-and-the-agent).
 
-**Still not built:** video transcripts (yt-dlp), and the outbound half of the
-Agent Zero integration — CookVault *calling* Agent Zero, which the recipe
-finder's web-search half would use. That one is still blocked on a
+**Still not built:** the outbound half of the Agent Zero integration —
+CookVault *calling* Agent Zero, which both the recipe finder's web-search half
+and any structuring of a video transcript would use. It is still blocked on a
 request/response contract nobody has verified against the live instance on
 NexusServer; `backend/app/agent_zero_client.py` raises rather than guessing.
 The inbound half needs none of it, because there CookVault is the server.
+
+**Video import has not been run against a live site.** The container it was
+built in cannot reach YouTube, so every test replaces the one function that
+touches the network, and the caption reader is proven against real subtitle
+fixtures. The yt-dlp call itself is unproven until it runs on NexusBody.
 
 **Known gaps, in rough priority order:**
 
@@ -36,9 +42,12 @@ The inbound half needs none of it, because there CookVault is the server.
 - The frontend has no tests of its own; CI typechecks and builds it, but nothing
   exercises the pages. The draft lifecycle has been driven end to end in a real
   browser, but by hand rather than by anything that runs in CI.
-- Import covers pasted text and web pages. Video transcripts are not handled;
-  that still needs yt-dlp. A model can now structure a recipe and propose it
-  through `/agent/recipe-drafts`, but CookVault does not call one itself.
+- A video's transcript is kept for you to read, not turned into ingredients.
+  Structuring speech needs a model, and CookVault does not call one itself —
+  though one can propose a recipe through `/agent/recipe-drafts`.
+- Video import covers YouTube, TikTok and Instagram, and nothing else, by
+  design. A video host that publishes captions but isn't on that list needs a
+  line added to `SUPPORTED_HOSTS` and a moment's thought about it.
 - The recipe finder still searches only saved recipes. The "new finds" half
   needs web search, which is the outbound Agent Zero client.
 - The text parser is a heuristic. It reads the shapes real recipes use, but an
@@ -152,18 +161,24 @@ first day. See [The agent surface](#the-agent-surface).
 
 ### Importing
 
-`POST /import` (a URL) and `POST /import/paste` (text) both create a **draft**.
-There is no flag to skip that: an importer reads text somebody else wrote and
-is sometimes wrong about it, so the review queue is where its output belongs
-by construction rather than by convention.
+`POST /import` (a URL), `POST /import/video` (a cooking video) and
+`POST /import/paste` (text) all create a **draft**. There is no flag to skip
+that: an importer reads something somebody else wrote and is sometimes wrong
+about it, so the review queue is where its output belongs by construction
+rather than by convention.
 
-Both paths are deterministic — no model, no API key:
+All three are deterministic — no model, no API key:
 
 - **A URL** is fetched and its `schema.org/Recipe` JSON-LD read if present.
   Most recipe sites publish it because Google asks them to, and it carries the
   amounts the author actually typed, so this is extraction rather than
   guessing. Without it, the page text goes through the same heuristic as a
   paste, which is rougher.
+- **A video** (`services/video_import.py`) has both its description and its
+  spoken transcript read, and keeps both. The spec's first listed pitfall is
+  that captions alone miss 30–50% of a recipe, so when the description says
+  "season to taste" and the video says "a teaspoon of salt", the second one is
+  there to be found. Only the description is *structured* — see below.
 - **Pasted text** goes through `services/recipe_text.py`: amounts ("1 1/2",
   "½", "400g", "2-3" → its lower bound), units, and a first guess at which of
   the four columns each ingredient belongs to. Step numbers come out as 1..n
@@ -180,11 +195,39 @@ not http(s). A recipe never lives at a private address, and without this a
 pasted link could make CookVault fetch from inside the Tailscale network and
 store the reply.
 
-**Not built:** video transcripts and model-assisted structuring. Those need
-yt-dlp and a verified Agent Zero contract (`app/agent_zero_client.py`). When
-they land they produce the same payload and create a draft through the same
-function; `import_method` on the provenance row is what tells them apart
-afterwards.
+**Speech is not parsed into ingredients.** Descriptions are written as lists
+and the line heuristic handles them. A transcript is prose, and running the
+same parser over it produces the ingredient *"guanciale and you want to render
+that slowly"* — worse than nothing, because it looks like data. So when the
+description holds no recipe, the draft arrives with the title, an empty recipe,
+the transcript attached and a note saying plainly that it could not be
+structured. A draft that admits it beats one that is confidently wrong, and the
+transcript is still worth having in the queue to work from.
+
+**Rolling captions** are the one real parsing problem. YouTube's automatic
+captions are written to be read two lines at a time, so each cue repeats the
+tail of the one before and adds a few words; concatenated naively a transcript
+reads *"so today we're making a so today we're making a carbonara so today
+we're making a carbonara and the first…"* — three times its real length.
+`services/transcripts.py` drops a line that repeats what was just emitted, and
+only when it is consecutive, because someone saying the same thing twice a
+minute apart said it twice. VTT, SRT and json3; json3 preferred because it has
+no such repetition to undo. Written captions beat automatic ones, for the same
+reason `import_method` exists.
+
+**Video import is allowlisted** to YouTube, TikTok and Instagram, unlike
+`/import`. That endpoint fetches a page CookVault then parses itself; this one
+hands a URL to yt-dlp, a large extractor that follows the site's own redirects
+to wherever the media lives. `check_url` guards the address it was given and
+cannot guard everywhere that library then goes, so a short list of hosts is the
+smaller thing to reason about — and general web pages already have a path.
+Both checks run: a hostname on the list could still resolve somewhere private.
+
+**Still not built:** model-assisted structuring, which is what would make the
+transcript worth more than a reference to read while editing. It needs a
+verified Agent Zero contract (`app/agent_zero_client.py`). When it lands it
+fills `extracted_payload` from `original_text` and creates a draft through the
+same function; `import_method` is what tells them apart afterwards.
 
 ### Provenance
 
@@ -393,7 +436,7 @@ backend/
     services/            Domain logic: scaling, shopping list, validation,
                          recipe-text parsing, web import, aisles, backup,
                          recipe search, meal planning
-  alembic/versions/      Migrations (0001 initial ... 0010 meal plan drafts)
+  alembic/versions/      Migrations (0001 initial ... 0011 video import)
   docker-entrypoint.sh   Runs migrations, then uvicorn
 frontend/
   app/

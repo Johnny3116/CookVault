@@ -88,6 +88,9 @@ class ImportMethod(str, enum.Enum):
     manual = "manual"
     paste = "paste"
     url_fetch = "url_fetch"
+    # A page a publisher typed vs words a machine transcribed: the second is
+    # the least reliable source in the system, and that belongs on the row.
+    video_fetch = "video_fetch"
     agent = "agent"
 
 

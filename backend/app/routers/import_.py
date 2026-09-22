@@ -12,11 +12,17 @@ Two sources work today, both deterministic:
   amounts the publisher actually typed), and the text heuristic is the
   fallback if not.
 
-Video transcripts and model-assisted structuring are the missing third source.
-They need yt-dlp and a verified Agent Zero contract -- see
-`app/agent_zero_client.py`. When they arrive they produce the same payload and
-create a draft through the same function; `import_method="agent"` on the
-provenance row is what will tell the two apart afterwards.
+- **video**: a cooking video's description and spoken transcript, via yt-dlp.
+  Both are kept, because the spec's first listed pitfall is that captions alone
+  miss a third to a half of a recipe. Only the description is *structured*: see
+  `services/video_import.py` for why running a line parser over speech is worse
+  than returning an honest blank.
+
+Model-assisted structuring is the one still missing, and it is what would make
+the transcript half worth more than a reference. It needs a verified Agent Zero
+contract -- see `app/agent_zero_client.py`. When it arrives it produces the
+same payload and creates a draft through the same function here;
+`import_method` on the provenance row is what tells them apart afterwards.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -27,6 +33,7 @@ from app.auth import require_auth
 from app.db import get_db
 from app.routers.drafts import build_draft
 from app.services.recipe_text import parse_recipe_text
+from app.services import video_import
 from app.services.web_import import SourceFetchError, fetch_page, payload_from_page
 
 router = APIRouter(prefix="/import", tags=["import"], dependencies=[Depends(require_auth)])
@@ -36,13 +43,14 @@ def _store(
     db: Session,
     payload: dict,
     provenance: schemas.ProvenanceCreate,
+    note: str | None = None,
 ) -> models.RecipeDraft:
     # The payload is the editable proposal; extracted_payload is a frozen copy
     # of what the importer produced. They start identical and diverge the
     # moment anyone edits the draft, which is what makes "what did I change?"
     # answerable later.
     provenance.extracted_payload = payload
-    draft = build_draft(payload.get("title") or None, payload, provenance)
+    draft = build_draft(payload.get("title") or None, payload, provenance, note)
     db.add(draft)
     db.commit()
     db.refresh(draft)
@@ -104,4 +112,45 @@ def import_from_paste(payload: schemas.ImportPasteRequest, db: Session = Depends
             import_method=models.ImportMethod.paste,
             original_text=payload.text,
         ),
+    )
+
+
+@router.post("/video", response_model=schemas.RecipeDraftDetail, status_code=status.HTTP_201_CREATED)
+def import_from_video(payload: schemas.ImportVideoRequest, db: Session = Depends(get_db)):
+    """Read a cooking video into a draft: description, transcript, and both.
+
+    The description is what gets structured. The transcript is kept beside it
+    because the spec's first listed pitfall is that captions alone miss a third
+    to a half of a recipe -- so when the description says "season to taste" and
+    the video says "a teaspoon of salt", the second one is there to be found.
+
+    What could not be worked out is said out loud in the draft's note rather
+    than guessed at. A draft that admits it is empty is more useful than one
+    full of sentences parsed into ingredients.
+    """
+    try:
+        source = video_import.fetch_video(str(payload.url))
+    except SourceFetchError as exc:
+        # An unsupported host, a private video, a dead link: the caller's
+        # problem to fix, so 400 rather than a 500 that reads like CookVault
+        # broke.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    result = video_import.payload_from_video(source)
+    if payload.title:
+        result.payload["title"] = payload.title
+
+    return _store(
+        db,
+        result.payload,
+        schemas.ProvenanceCreate(
+            source_type=source.source_type,
+            source_url=source.url,
+            # The channel, when there is one: "who made this" is most of what
+            # you want to know about a recipe from a video.
+            source_title=source.uploader or source.title,
+            import_method=models.ImportMethod.video_fetch,
+            original_text=video_import.original_text(source),
+        ),
+        note=" ".join([result.note, *result.warnings]),
     )

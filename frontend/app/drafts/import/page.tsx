@@ -7,7 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { describeApiError } from "@/lib/errors";
 import type { RecipeDraftDetail } from "@/types";
 
-type Mode = "url" | "paste";
+type Mode = "url" | "video" | "paste";
 
 export default function ImportPage() {
   const router = useRouter();
@@ -23,22 +23,18 @@ export default function ImportPage() {
     setBusy(true);
     setError(null);
     try {
-      const draft =
-        mode === "url"
-          ? await apiFetch<RecipeDraftDetail>("/import", {
-              method: "POST",
-              body: JSON.stringify({
-                url: url.trim(),
-                source_title: sourceTitle.trim() || null,
-              }),
-            })
-          : await apiFetch<RecipeDraftDetail>("/import/paste", {
-              method: "POST",
-              body: JSON.stringify({
-                text,
-                source_title: sourceTitle.trim() || null,
-              }),
-            });
+      const request: Record<Mode, [string, object]> = {
+        url: ["/import", { url: url.trim(), source_title: sourceTitle.trim() || null }],
+        // The video's own title is used unless one is given here, so this box
+        // means something different in this mode -- see its label below.
+        video: ["/import/video", { url: url.trim(), title: sourceTitle.trim() || null }],
+        paste: ["/import/paste", { text, source_title: sourceTitle.trim() || null }],
+      };
+      const [path, body] = request[mode];
+      const draft = await apiFetch<RecipeDraftDetail>(path, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
       router.push(`/drafts/${draft.id}`);
     } catch (err) {
       // The backend explains refusals in plain words (a private address, a
@@ -61,7 +57,7 @@ export default function ImportPage() {
       </div>
 
       <div className="flex gap-2">
-        {(["url", "paste"] as Mode[]).map((option) => (
+        {(["url", "video", "paste"] as Mode[]).map((option) => (
           <button
             key={option}
             onClick={() => setMode(option)}
@@ -70,25 +66,38 @@ export default function ImportPage() {
               mode === option ? "border-neutral-800 bg-neutral-800 text-white" : "border-neutral-300"
             }`}
           >
-            {option === "url" ? "From a web page" : "Paste the text"}
+            {{ url: "From a web page", video: "From a video", paste: "Paste the text" }[option]}
           </button>
         ))}
       </div>
 
       <form onSubmit={submit} className="space-y-4">
-        {mode === "url" ? (
+        {mode === "url" || mode === "video" ? (
           <label className="block text-sm">
-            <span className="mb-1 block font-medium">Recipe URL</span>
+            <span className="mb-1 block font-medium">
+              {mode === "video" ? "Video link" : "Recipe URL"}
+            </span>
             <span className="mb-1 block text-xs text-neutral-500">
-              If the page publishes structured recipe data, the amounts come straight from the
-              publisher. Otherwise the page text is parsed, which is rougher.
+              {mode === "video" ? (
+                <>
+                  YouTube, TikTok or Instagram. The description and the spoken transcript are both
+                  read and both kept — captions alone routinely miss a third of a recipe. Only the
+                  description is turned into ingredients; if it hasn&apos;t got a recipe in it the
+                  draft arrives empty with the transcript attached, rather than guessing at speech.
+                </>
+              ) : (
+                <>
+                  If the page publishes structured recipe data, the amounts come straight from the
+                  publisher. Otherwise the page text is parsed, which is rougher.
+                </>
+              )}
             </span>
             <input
               type="url"
               required
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://…"
+              placeholder={mode === "video" ? "https://www.youtube.com/watch?v=…" : "https://…"}
               className="w-full rounded border border-neutral-300 px-2 py-1"
             />
           </label>
@@ -110,11 +119,18 @@ export default function ImportPage() {
         )}
 
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">Source title (optional)</span>
+          <span className="mb-1 block font-medium">
+            {mode === "video" ? "Recipe title (optional)" : "Source title (optional)"}
+          </span>
+          {mode === "video" && (
+            <span className="mb-1 block text-xs text-neutral-500">
+              Video titles are shoutier than recipe names. Leave blank to keep the video&apos;s own.
+            </span>
+          )}
           <input
             value={sourceTitle}
             onChange={(e) => setSourceTitle(e.target.value)}
-            placeholder="Nonna's book, p.42"
+            placeholder={mode === "video" ? "Carbonara" : "Nonna's book, p.42"}
             className="w-full rounded border border-neutral-300 px-2 py-1"
           />
         </label>

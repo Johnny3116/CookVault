@@ -1,4 +1,13 @@
-import type { Provenance } from "@/types";
+import type { ImportMethod, Provenance } from "@/types";
+
+// How it arrived, in words rather than as a column value.
+const ARRIVAL: Record<ImportMethod, string> = {
+  manual: "typed in by hand",
+  paste: "pasted text, parsed",
+  url_fetch: "fetched from a page",
+  video_fetch: "read from a video",
+  agent: "proposed by an agent",
+};
 
 /** Where a draft or recipe came from, shown read-only.
  *
@@ -10,6 +19,10 @@ import type { Provenance } from "@/types";
 export function ProvenanceCard({ provenance }: { provenance: Provenance }) {
   const extracted = provenance.extracted_payload;
   const byAgent = provenance.import_method === "agent";
+  // For a video the original text is the transcript, and checking a quantity
+  // against what was actually said is the main thing you are here to do -- so
+  // it starts open rather than one click away.
+  const fromVideo = provenance.import_method === "video_fetch";
 
   return (
     <section className="rounded border border-neutral-200 p-4">
@@ -38,7 +51,7 @@ export function ProvenanceCard({ provenance }: { provenance: Provenance }) {
         <div>
           <dt className="text-xs uppercase tracking-wide text-neutral-400">How it arrived</dt>
           <dd>
-            {provenance.import_method}
+            {ARRIVAL[provenance.import_method] ?? provenance.import_method}
             {byAgent && provenance.agent_model && (
               <span className="text-neutral-500">
                 {" "}
@@ -55,8 +68,10 @@ export function ProvenanceCard({ provenance }: { provenance: Provenance }) {
       </dl>
 
       {provenance.original_text && (
-        <details className="mt-4">
-          <summary className="cursor-pointer text-sm font-medium">Original text</summary>
+        <details className="mt-4" open={fromVideo}>
+          <summary className="cursor-pointer text-sm font-medium">
+            {fromVideo ? "Description and transcript" : "Original text"}
+          </summary>
           <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-3 text-xs">
             {provenance.original_text}
           </pre>
