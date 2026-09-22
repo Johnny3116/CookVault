@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import { IngredientColumn } from "@/components/IngredientColumn";
+import { CookLog } from "@/components/CookLog";
 import { ProvenanceCard } from "@/components/ProvenanceCard";
 import { StepList } from "@/components/StepList";
 import { apiFetch } from "@/lib/api";
@@ -138,6 +139,9 @@ function RecipeDetailContent() {
     baseServings ? `serves ${baseServings}` : null,
     formatCost(recipe.estimated_cost) ? `~${formatCost(recipe.estimated_cost)}` : null,
     recipe.cook_methods.length > 0 ? recipe.cook_methods.join(", ") : null,
+    recipe.last_cooked_on
+      ? `last cooked ${recipe.last_cooked_on}${recipe.times_cooked > 1 ? ` · ${recipe.times_cooked}×` : ""}`
+      : null,
   ].filter(Boolean);
 
   return (
@@ -267,6 +271,17 @@ function RecipeDetailContent() {
         <h2 className="mb-4 text-lg font-semibold">Steps</h2>
         <StepList steps={recipe.steps} />
       </div>
+
+      <CookLog
+        recipeId={recipe.id}
+        // Recording a cook changes times_cooked / last_cooked_on, which are
+        // derived server-side, so the recipe has to be re-read rather than
+        // patched locally.
+        onChange={() => {
+          const query = servings === null ? "" : `?servings=${servings}`;
+          apiFetch<RecipeDetailType>(`/recipes/${params.id}${query}`).then(setRecipe);
+        }}
+      />
 
       {recipe.provenance && <ProvenanceCard provenance={recipe.provenance} />}
 

@@ -5,10 +5,11 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import ClassVar
 
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, model_validator
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, model_validator
 
 from app.models import (
     AlternateType,
+    ShoppingAisle,
     DraftStatus,
     ImportMethod,
     IngredientCategory,
@@ -191,6 +192,10 @@ class RecipeSummary(RecipeBase):
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    # Derived from the cook log, never stored: a counter and a log can
+    # disagree, and then something has to decide which one lied.
+    times_cooked: int = 0
+    last_cooked_on: CalendarDate | None = None
 
 
 class RecipeDetail(RecipeSummary):
@@ -220,6 +225,9 @@ class ShoppingListItemCreate(ShoppingListItemBase):
 class ShoppingListItemUpdate(PatchModel):
     non_nullable: ClassVar[frozenset[str]] = frozenset({"name", "category", "is_checked"})
 
+    # Nullable on purpose: clearing it hands the line back to the rules.
+    aisle_override: ShoppingAisle | None = None
+
     name: str | None = None
     quantity: Decimal | None = None
     unit: str | None = None
@@ -227,11 +235,43 @@ class ShoppingListItemUpdate(PatchModel):
     is_checked: bool | None = None
 
 
+class PantryItemBase(BaseModel):
+    """Something you keep in. A name and a note, nothing more -- quantities
+    and expiry dates turn a cookbook into inventory software."""
+
+    name: str
+    note: str | None = None
+
+
+class PantryItemCreate(PantryItemBase):
+    pass
+
+
+class PantryItemUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"name"})
+
+    name: str | None = None
+    note: str | None = None
+
+
+class PantryItemRead(PantryItemBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
 class ShoppingListItemRead(ShoppingListItemBase):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     recipe_id: uuid.UUID | None = None
     is_generated: bool = False
+    # What the rules (or an override) put this line in. Computed per response
+    # rather than stored, so correcting a rule corrects every existing line.
+    aisle: ShoppingAisle = ShoppingAisle.other
+    aisle_override: ShoppingAisle | None = None
+    # A hint, never a subtraction: the line stays on the list either way.
+    in_pantry: bool = False
 
 
 class ShoppingListGenerateRequest(BaseModel):
@@ -366,3 +406,77 @@ class ImportPasteRequest(BaseModel):
     source_type: SourceType = SourceType.manual
     source_title: str | None = None
     source_url: str | None = None
+
+
+class AisleRuleBase(BaseModel):
+    """One "this word means that aisle" mapping."""
+
+    term: str
+    aisle: ShoppingAisle
+
+
+class AisleRuleCreate(AisleRuleBase):
+    pass
+
+
+class AisleRuleUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"term", "aisle"})
+
+    term: str | None = None
+    aisle: ShoppingAisle | None = None
+
+
+class AisleRuleRead(AisleRuleBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    created_at: datetime
+
+
+class AisleResolution(BaseModel):
+    """What the rules make of a name, and which rule decided it -- so a
+    surprising answer can be traced to the row that caused it."""
+
+    name: str
+    aisle: ShoppingAisle
+    matched_term: str | None = None
+
+
+class CookLogBase(BaseModel):
+    """One occasion of cooking something."""
+
+    cooked_on: CalendarDate
+    # What you actually made, which is not always what you planned. Bounded
+    # here as well as by the check constraint, so a nonsensical value is a 422
+    # about the request rather than a 500 from the database.
+    servings_made: int | None = Field(default=None, gt=0)
+    rating: int | None = Field(default=None, ge=1, le=5)
+    notes: str | None = None
+
+
+class CookLogCreate(CookLogBase):
+    # Defaults to today, because the overwhelmingly common case is logging a
+    # meal you have just eaten.
+    cooked_on: CalendarDate | None = None
+
+
+class CookLogUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"cooked_on"})
+
+    cooked_on: CalendarDate | None = None
+    servings_made: int | None = Field(default=None, gt=0)
+    rating: int | None = Field(default=None, ge=1, le=5)
+    notes: str | None = None
+
+
+class CookLogRead(CookLogBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    recipe_id: uuid.UUID
+    created_at: datetime
+
+
+class CookLogEntry(CookLogRead):
+    """A log line with the recipe's title, for the "recently cooked" feed --
+    otherwise reading it means a lookup per row."""
+
+    recipe_title: str

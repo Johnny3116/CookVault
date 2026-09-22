@@ -11,6 +11,28 @@ dates are commit dates rather than release dates.
 
 ### Added
 
+- **Shopping aisles** (migration `0006`), a different axis from ingredient
+  category: category is what a thing is when you cook with it, aisle is where
+  you walk to pick it up. The mapping is rows in `aisle_rules`, seeded with 161
+  terms and editable at runtime. Longest match wins, whole-word only, no match
+  is `other`. An item's aisle is resolved per response so fixing a rule fixes
+  every line; `aisle_override` is there when you know better.
+  `GET /aisles/resolve` names the rule that decided. The shopping list is
+  grouped by aisle and reads as a route through a shop.
+- **Cooking history** (migration `0007`). `cook_log` records what was actually
+  made and when, with a rating and note per occasion. `times_cooked` and
+  `last_cooked_on` are derived from the log rather than counted on the recipe.
+  `GET /history` is a recent feed; the library gains "Not made in ages" and
+  "Made most often".
+- **Pantry** (migration `0008`): names and notes, no quantities and no expiry
+  dates. It flags a shopping line as something you probably already have and
+  never removes one.
+- **Backup and restore.** `GET /backup/export` dumps the whole library as JSON
+  with ids preserved; `POST /backup/restore` replaces everything in one
+  transaction, requires `confirm: "replace"`, and refuses an unrecognised
+  format version. A round-trip test builds a library with a row in every table,
+  wipes it, restores and compares the whole export for equality.
+
 - `httpx` is now a runtime dependency, not just a test one: URL import needs an
   HTTP client.
 - **Import into a draft.** `POST /import` takes a URL, `POST /import/paste`
@@ -146,6 +168,13 @@ dates are commit dates rather than release dates.
   alternate by kind.
 
 ### Fixed
+
+- `servings_made=0` when logging a cook reached the check constraint and came
+  back a 500; it is bounded in the schema now, so a bad request is answered as
+  one. Same shape as the PATCH-null fix.
+- A malformed backup raised out of the restore endpoint instead of returning a
+  400, and left the session holding uncommitted deletes. It rolls back and
+  reports the problem now, so "nothing was changed" is true rather than likely.
 
 - PATCH with an explicit null on a NOT NULL column returned a 500. Every field
   on a PATCH schema is optional, but `{"title": null}` is *set*, so it survived

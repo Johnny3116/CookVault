@@ -28,6 +28,7 @@ function LibraryContent() {
   const cookMethod = searchParams.get("cook_method") ?? "";
   const maxTime = searchParams.get("max_total_time") ?? "";
   const search = searchParams.get("search") ?? "";
+  const sort = searchParams.get("sort") ?? "";
 
   const [recipes, setRecipes] = useState<RecipeSummary[]>([]);
   const [facets, setFacets] = useState<RecipeFacets>({ tags: [], cook_methods: [] });
@@ -55,13 +56,14 @@ function LibraryContent() {
     if (cookMethod) query.set("cook_method", cookMethod);
     if (maxTime) query.set("max_total_time", maxTime);
     if (search) query.set("search", search);
+    if (sort) query.set("sort", sort);
 
     setLoading(true);
     apiFetch<RecipeSummary[]>(`/recipes${query.toString() ? `?${query}` : ""}`)
       .then(setRecipes)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [favoriteOnly, tag, cookMethod, maxTime, search]);
+  }, [favoriteOnly, tag, cookMethod, maxTime, search, sort]);
 
   useEffect(() => {
     apiFetch<RecipeFacets>("/recipes/facets").then(setFacets).catch(() => {});
@@ -131,6 +133,18 @@ function LibraryContent() {
               {o.label}
             </option>
           ))}
+        </select>
+
+        <select
+          aria-label="Sort"
+          value={sort}
+          onChange={(e) => setFilter("sort", e.target.value)}
+          className={control}
+        >
+          <option value="">Recently updated</option>
+          {/* The question cooking history exists to answer. */}
+          <option value="last_cooked">Not made in ages</option>
+          <option value="most_cooked">Made most often</option>
         </select>
 
         <button

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { addDays, fmtDate, startOfWeek } from "@/lib/dates";
 import { ingredientLabel } from "@/lib/format";
+import { AISLES } from "@/types";
 import type { IngredientCategory, RecipeSummary, ShoppingListItem } from "@/types";
 
 const CATEGORIES: { key: IngredientCategory; label: string }[] = [
@@ -229,16 +230,19 @@ export default function ShoppingListPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
-        {CATEGORIES.map((cat) => {
-          const inCategory = items.filter((i) => i.category === cat.key);
+      {/* Grouped by aisle rather than by ingredient category: this list is
+          used while walking a shop, and only aisles with something in them
+          are shown -- nine empty headings is noise, not structure. */}
+      <div className="space-y-6">
+        {AISLES.filter((aisle) => items.some((i) => i.aisle === aisle.key)).map((aisle) => {
+          const inAisle = items.filter((i) => i.aisle === aisle.key);
           return (
-            <div key={cat.key}>
+            <div key={aisle.key}>
               <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">
-                {cat.label}
+                {aisle.label}
               </h3>
               <ul className="space-y-1">
-                {inCategory.map((item) => (
+                {inAisle.map((item) => (
                   <li key={item.id} className="group flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -253,9 +257,40 @@ export default function ShoppingListPage() {
                         )
                       }
                     />
-                    <span className={`flex-1 ${item.is_checked ? "text-neutral-400 line-through" : ""}`}>
+                    <span className={`${item.is_checked ? "text-neutral-400 line-through" : ""}`}>
                       {ingredientLabel(item)}
                     </span>
+                    {/* A hint, not a subtraction: the line is still on the
+                        list, because dropping it would silently under-buy. */}
+                    {item.in_pantry && (
+                      <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-500">
+                        in pantry
+                      </span>
+                    )}
+                    <span className="flex-1" />
+                    {/* Moving a line is per-item, and "auto" hands it back to
+                        the rules rather than pinning it where it happens to
+                        be now. */}
+                    <select
+                      aria-label={`Aisle for ${item.name}`}
+                      value={item.aisle_override ?? ""}
+                      onChange={(e) =>
+                        run(() =>
+                          apiFetch(`/shopping-list/${item.id}`, {
+                            method: "PATCH",
+                            body: JSON.stringify({ aisle_override: e.target.value || null }),
+                          }),
+                        )
+                      }
+                      className="rounded border-none bg-transparent text-xs text-neutral-300 hover:text-neutral-600 focus:text-neutral-700 group-hover:text-neutral-400"
+                    >
+                      <option value="">auto</option>
+                      {AISLES.map((option) => (
+                        <option key={option.key} value={option.key}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                     <button
                       onClick={() => run(() => apiFetch(`/shopping-list/${item.id}`, { method: "DELETE" }))}
                       aria-label={`Remove ${item.name}`}
@@ -265,11 +300,11 @@ export default function ShoppingListPage() {
                     </button>
                   </li>
                 ))}
-                {inCategory.length === 0 && <li className="text-sm text-neutral-400">—</li>}
               </ul>
             </div>
           );
         })}
+        {items.length === 0 && <p className="text-sm text-neutral-400">Nothing on the list.</p>}
       </div>
     </div>
   );

@@ -10,9 +10,10 @@ generates shopping checklists, and plans meals on a calendar.
 ## Status
 
 **Built and usable:** recipe storage with full CRUD from the UI (create, edit,
-delete, favorite), the four-column recipe detail page, alternates, shopping lists,
-manual-mode meal planning, nondestructive scaling, and the draft review queue
-that everything imported will eventually pass through.
+delete, favorite), the four-column recipe detail page, alternates, shopping lists
+grouped by aisle, manual-mode meal planning, nondestructive scaling, the draft
+review queue that everything imported passes through, import from a URL or
+pasted text, cooking history, a pantry, and whole-library backup and restore.
 
 **Phase 2 (not built yet):** video/web import (yt-dlp + scraping), the LLM-parsed
 half of the recipe finder, and auto-fill meal planning. The relevant backend
@@ -37,6 +38,11 @@ request/response JSON contract hasn't been verified yet — see
 - Provenance can only be set when a draft is created, not edited afterwards.
   That is deliberate for now — where something came from doesn't change — but
   it means a typo in a source title is fixed by starting over.
+- Leftovers and freezer tracking are deliberately not built. That is the
+  feature that wakes up three weeks later as `FoodInventoryLot` and
+  `PortionAllocation`; the pantry is kept quantity-free for the same reason.
+- Aisle rules match words, not meaning. A term you haven't added lands in
+  `other` until you add it — there is no cleverness making a guess.
 
 ## Stack
 
@@ -187,6 +193,66 @@ the same row at both, rather than copying it somewhere it can drift. That is
 also why a promoted draft can't be deleted — deleting it would cascade the
 recipe's provenance away.
 
+## Aisles, history, pantry and backups
+
+**Aisle is a different axis from ingredient category.** Category is what a
+thing *is* when you cook with it (raw / spice / pantry / misc); aisle is where
+you walk to pick it up. Fresh parsley is a `spice_sauce` ingredient in the
+produce aisle.
+
+The mapping lives in `aisle_rules` — rows, not a dict in the source — because
+the right answer is personal and shop-specific and should be editable without a
+deploy. Migration `0006` seeds 161 terms as a starting point you own. The
+longest matching term wins, so `chicken stock` beats `chicken` and lands in
+pantry; terms match whole words, so `ham` doesn't fire on `hammer`; nothing
+matching is `other` rather than a guess. `GET /aisles/resolve?name=…` says
+which rule decided, because a mapping you can't interrogate is one you fight.
+
+An item's aisle is resolved per response, not stored, so correcting a rule
+corrects every line that relied on it. `aisle_override` is there for when you
+know better than the rules; clearing it hands the line back.
+
+**Cooking history** (`cook_log`) records what was actually made and when,
+separately from the plan — a plan is an intention, a log is a record, and
+nothing should rewrite the second because the first changed. The rating and
+note belong to the occasion, not the recipe: "too salty" is about the night you
+cooked it. `times_cooked` and `last_cooked_on` are derived from the log rather
+than kept as counters, because a counter and a log can disagree. The library's
+**"Not made in ages"** sort is the question this exists to answer.
+
+**The pantry** is a list of names and notes. No quantities, no expiry dates,
+no lots — tracking how much olive oil is left turns a cookbook into inventory
+software, and the person who has to keep it accurate is the one who wanted to
+cook dinner. Its one job is to flag a shopping line as something you probably
+already have. **It never removes a line:** silently under-buying is worse than
+buying a second jar of cumin.
+
+### Backups
+
+`GET /backup/export` returns the whole library as JSON; `POST /backup/restore`
+puts it back, replacing everything, and requires `confirm: "replace"` in the
+body because an accidental restore can't be undone from inside the app.
+
+Three decisions make the backup checkable rather than merely plausible:
+
+- **Ids are preserved.** A restore that renumbers produces a library that looks
+  right and compares unequal — and then a good backup is indistinguishable from
+  a bad one.
+- **Restore is one transaction.** A half-restored library is the worst outcome
+  available, so a malformed file rolls back and changes nothing.
+- **The format is versioned**, and an unrecognised version is refused rather
+  than half-imported.
+
+Decimal quantities export as strings, so a third of a cup survives as the
+number it was. Derived values (`times_cooked`, resolved aisles) are deliberately
+absent — exporting them would invite a restore that disagrees with its own data.
+
+**Restore testing runs in CI.** `test_a_full_library_survives_a_round_trip`
+builds a library with a row in every table, exports it, wipes everything,
+restores, and compares the *whole* export for equality. Spot-checking a few
+fields is how a backup that quietly drops a column passes its own tests for a
+year.
+
 ## Architecture note: one port, not two
 
 The browser only ever talks to the frontend's origin. `/api/*` is proxied
@@ -216,14 +282,15 @@ backend/
     agent_zero_client.py Phase 2 stub — intentionally unimplemented
     routers/             One module per resource
     services/            Domain logic: scaling, shopping list, validation,
-                         recipe-text parsing, web import
-  alembic/versions/      Migrations (0001 initial ... 0005 drafts + provenance)
+                         recipe-text parsing, web import, aisles, backup
+  alembic/versions/      Migrations (0001 initial ... 0008 pantry)
   docker-entrypoint.sh   Runs migrations, then uvicorn
 frontend/
   app/
     api/[...path]/       Server-side proxy to the backend
     recipes/             Detail, edit and new-recipe pages
     drafts/              The review queue: import, propose, validate, promote
+    pantry/              Staples, and backup export/restore
     login/               Password gate
     ...                  Dashboard, library, finder, shopping list, calendar
   components/RecipeForm.tsx  Shared by the new and edit pages

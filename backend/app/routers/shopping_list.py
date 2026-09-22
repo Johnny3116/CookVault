@@ -6,17 +6,44 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.auth import require_auth
 from app.db import get_db
+from app.routers.aisles import load_rules
+from app.routers.pantry import load_names
+from app.services.aisles import aisle_sort_key, longest_match, resolve_aisle
 from app.services.shopping_list import PlannedRecipe, build_items
 
 router = APIRouter(prefix="/shopping-list", tags=["shopping-list"], dependencies=[Depends(require_auth)])
 
 
-def _all_items(db: Session) -> list[models.ShoppingListItem]:
-    return (
-        db.query(models.ShoppingListItem)
-        .order_by(models.ShoppingListItem.category, models.ShoppingListItem.name)
-        .all()
-    )
+def _read(
+    item: models.ShoppingListItem, rules, pantry: list[str]
+) -> schemas.ShoppingListItemRead:
+    """One row plus the aisle the rules put it in and whether it's a staple.
+
+    Both are resolved per response rather than stored: fixing a rule, or
+    putting something in the pantry, then applies to every line that relied on
+    it instead of only the ones added afterwards.
+    """
+    read = schemas.ShoppingListItemRead.model_validate(item)
+    read.aisle = resolve_aisle(item.name, item.aisle_override, rules)
+    # A hint, never a subtraction. Dropping the line would silently under-buy,
+    # which is worse than buying a second jar of cumin.
+    read.in_pantry = longest_match(item.name, pantry) is not None
+    return read
+
+
+def _all_items(db: Session) -> list[schemas.ShoppingListItemRead]:
+    """The list in shop order: aisle by aisle, alphabetical within each.
+
+    Sorted here rather than in SQL because the aisle isn't a column -- it comes
+    from the rules, which are rows of their own.
+    """
+    rules = load_rules(db)
+    pantry = load_names(db)
+    items = [
+        _read(item, rules, pantry)
+        for item in db.query(models.ShoppingListItem).order_by(models.ShoppingListItem.name).all()
+    ]
+    return sorted(items, key=lambda item: (aisle_sort_key(item.aisle), item.name.lower()))
 
 
 @router.get("", response_model=list[schemas.ShoppingListItemRead])
@@ -110,7 +137,7 @@ def add_item(payload: schemas.ShoppingListItemCreate, db: Session = Depends(get_
     db.add(item)
     db.commit()
     db.refresh(item)
-    return item
+    return _read(item, load_rules(db), load_names(db))
 
 
 @router.patch("/{item_id}", response_model=schemas.ShoppingListItemRead)
@@ -122,7 +149,7 @@ def update_item(item_id: uuid.UUID, payload: schemas.ShoppingListItemUpdate, db:
         setattr(item, field, value)
     db.commit()
     db.refresh(item)
-    return item
+    return _read(item, load_rules(db), load_names(db))
 
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
