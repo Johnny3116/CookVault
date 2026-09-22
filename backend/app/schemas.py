@@ -6,7 +6,15 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models import AlternateType, IngredientCategory, MealPlanMode, MealType, SourceType
+from app.models import (
+    AlternateType,
+    DraftStatus,
+    ImportMethod,
+    IngredientCategory,
+    MealPlanMode,
+    MealType,
+    SourceType,
+)
 
 # A field named `date` that carries a default puts `date = <default>` in its
 # class body, which shadows the imported type when the annotation is resolved.
@@ -154,6 +162,8 @@ class RecipeDetail(RecipeSummary):
     # The stored recipe is always canonical; scaling happens at read time.
     scaled_to_servings: int | None = None
     applied_scale: Decimal | None = None
+    # Where this recipe came from, when it wasn't simply typed in.
+    provenance: ProvenanceRead | None = None
 
 
 class ShoppingListItemBase(BaseModel):
@@ -218,3 +228,77 @@ class MealPlanEntryUpdate(BaseModel):
 class MealPlanEntryRead(MealPlanEntryBase):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
+
+
+class ProvenanceBase(BaseModel):
+    """Where a draft or recipe came from, and who or what shaped it."""
+
+    source_type: SourceType = SourceType.manual
+    source_url: str | None = None
+    source_title: str | None = None
+    import_method: ImportMethod = ImportMethod.manual
+    # The raw source, kept apart from what was extracted out of it, so the two
+    # can still be compared later.
+    original_text: str | None = None
+    extracted_payload: dict | None = None
+    agent_model: str | None = None
+    agent_version: str | None = None
+
+
+class ProvenanceCreate(ProvenanceBase):
+    pass
+
+
+class ProvenanceRead(ProvenanceBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    draft_id: uuid.UUID | None = None
+    recipe_id: uuid.UUID | None = None
+    imported_at: datetime
+
+
+class DraftIssueRead(BaseModel):
+    """One problem with a proposed recipe.
+
+    `error` blocks promotion; `warning` is "look at this before you approve it"
+    -- an unconvertible unit, an ingredient listed twice.
+    """
+
+    severity: str
+    field: str
+    message: str
+
+
+class DraftValidation(BaseModel):
+    ok: bool
+    issues: list[DraftIssueRead] = []
+
+
+class RecipeDraftCreate(BaseModel):
+    title: str | None = None
+    # Shaped like RecipeCreate, but not typed as it: a draft is allowed to be
+    # wrong on arrival. Rejecting it at the door would mean the payloads most
+    # worth reviewing are the ones that can never be stored.
+    payload: dict = {}
+    provenance: ProvenanceCreate | None = None
+
+
+class RecipeDraftUpdate(BaseModel):
+    title: str | None = None
+    payload: dict | None = None
+
+
+class RecipeDraftSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    title: str | None = None
+    status: DraftStatus
+    promoted_recipe_id: uuid.UUID | None = None
+    promoted_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class RecipeDraftDetail(RecipeDraftSummary):
+    payload: dict = {}
+    provenance: ProvenanceRead | None = None

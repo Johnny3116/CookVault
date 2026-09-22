@@ -11,6 +11,28 @@ dates are commit dates rather than release dates.
 
 ### Added
 
+- **Recipe drafts** (migration `0005`). A staging area in front of the
+  cookbook: `POST /drafts` to propose, `PATCH` to edit, `/validate` to check,
+  `/promote` to turn into a real recipe, `/discard` to reject. Promotion is the
+  only route from a draft into `recipes`. Built and proven by hand now so that
+  an agent, when it is eventually allowed to propose recipes, gets the same
+  door and no other.
+- Draft validation (`backend/app/services/drafts.py`) reports two severities.
+  Errors block promotion — nothing parseable, no ingredients, no steps, step
+  numbers that aren't a 1..n sequence, negative times. Warnings don't — a unit
+  the app can't convert, an ingredient listed twice — because both are
+  legitimate things to write and also the classic shapes of a bad extraction.
+- Editing a draft's payload drops its status from `ready` back to `draft`, and
+  promotion revalidates rather than trusting the stored status.
+- **Recipe provenance** (migration `0005`): `source_type`, `source_url`,
+  `source_title`, `import_method`, `imported_at`, `agent_model`,
+  `agent_version`, plus `original_text` and `extracted_payload` stored
+  separately so the raw source can still be compared against what was extracted
+  from it. One row serves a draft and the recipe it is promoted into; it is
+  shown on both, and on `GET /recipes/{id}`.
+- A drafts UI: the review queue filtered by status, a new-draft page that
+  records where the content came from, and a draft page that validates, shows
+  the issues, and promotes.
 - Recipe scaling. `GET /recipes/{id}?servings=N` returns the recipe scaled to a
   target, leaving the stored recipe canonical; the response reports the scale
   applied. A recipe with no recorded yield comes back unchanged rather than
@@ -106,6 +128,22 @@ dates are commit dates rather than release dates.
   alternate by kind.
 
 ### Fixed
+
+- The scale row's preset chips only lit up at 0.5/1/1.5/2× of the recipe's
+  yield, so a meal planned for ten from a recipe serving four left every chip
+  unlit and the control read as dead. A target no preset can express now shows
+  its real multiplier as a lit readout.
+- The servings field committed on every keystroke, navigating and refetching
+  for "1" on the way to "10", and could not be cleared. It now commits on blur
+  or Enter, with Escape reverting.
+- The recipe header showed the scaled serving count next to unscaled prep and
+  cook times, directly above a line saying the saved recipe was unchanged. It
+  shows the recipe's own yield now.
+- Six nav links didn't fit at phone width, so every page scrolled sideways; the
+  nav wraps instead. Ingredient columns stack to one below the `sm` breakpoint.
+- Ingredient rows in the recipe form overflowed their column and overlapped the
+  next one: an `<input>` has an intrinsic minimum width, so `flex-1` alone
+  could not shrink the name field.
 
 - Setting `COOKVAULT_PASSWORD` bricked the app. There was no login page, the
   client never sent credentials, and the `samesite=lax` cookie without `secure`

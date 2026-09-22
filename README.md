@@ -11,7 +11,8 @@ generates shopping checklists, and plans meals on a calendar.
 
 **Built and usable:** recipe storage with full CRUD from the UI (create, edit,
 delete, favorite), the four-column recipe detail page, alternates, shopping lists,
-and manual-mode meal planning.
+manual-mode meal planning, nondestructive scaling, and the draft review queue
+that everything imported will eventually pass through.
 
 **Phase 2 (not built yet):** video/web import (yt-dlp + scraping), the LLM-parsed
 half of the recipe finder, and auto-fill meal planning. The relevant backend
@@ -27,9 +28,14 @@ request/response JSON contract hasn't been verified yet — see
   That's deliberate — guessing a density would be worse — but it does mean the
   list occasionally asks for the same thing twice.
 - The frontend has no tests of its own; CI typechecks and builds it, but nothing
-  exercises the pages.
-- Recipe scaling (halving or doubling a recipe) isn't built, though the unit
-  layer that would back it is.
+  exercises the pages. The draft lifecycle has been driven end to end in a real
+  browser, but by hand rather than by anything that runs in CI.
+- Drafts are proposed by hand only. `POST /import` is still a `501`: nothing
+  fills a draft automatically yet, which is the next step and the reason the
+  lifecycle was built first.
+- Provenance can only be set when a draft is created, not edited afterwards.
+  That is deliberate for now — where something came from doesn't change — but
+  it means a typo in a source title is fixed by starting over.
 
 ## Stack
 
@@ -90,6 +96,60 @@ What it does and doesn't do, by design:
 Generating is idempotent: it replaces the rows a previous generate produced and
 leaves hand-added items alone, so pressing it twice gives the same list.
 
+## Drafts: nothing enters the cookbook unreviewed
+
+`recipes` is the cookbook. `recipe_drafts` is the staging area in front of it,
+and promotion is the only route between them:
+
+```
+POST /drafts            propose            (status: draft)
+PATCH /drafts/{id}      edit               (ready -> draft again)
+POST /drafts/{id}/validate                 (draft <-> ready)
+POST /drafts/{id}/promote   -> recipe      (status: promoted, frozen)
+POST /drafts/{id}/discard                  (status: discarded, frozen)
+```
+
+The design principle this implements is **AI proposes, CookVault validates,
+John approves** — and it is built and proven by hand first. When an agent is
+eventually allowed to suggest recipes it gets `POST /drafts` and nothing else,
+so it arrives at the same door, and every guarantee below already applies to
+it.
+
+- **A draft is allowed to be wrong.** The payload is JSONB, not columns.
+  Rejecting bad payloads at the door would mean the proposals most worth
+  reviewing are the ones that can never be stored to review.
+- **Validation reports; it never repairs.** Silently fixing a proposal hides
+  exactly what the reviewer is there to see.
+- **Errors block promotion, warnings don't.** No ingredients, no steps, step
+  numbers that aren't a 1..n sequence: errors. An unconvertible unit or an
+  ingredient listed twice: warnings — "a handful of parsley" is a real thing
+  to write, and both are also the classic shapes of a bad extraction.
+- **Editing a payload drops `ready` back to `draft`.** The status is a claim
+  about a specific payload; letting it survive an edit would make it a claim
+  about a payload nobody checked.
+- **Promotion revalidates** rather than trusting the stored status. A gate that
+  trusts a cached answer is not a gate.
+- **Promoted and discarded drafts are frozen.** They are the record of what was
+  approved or rejected, not an editing surface.
+
+### Provenance
+
+`recipe_provenance` records where a draft or recipe came from: `source_type`,
+`source_url`, `source_title`, `import_method`, `imported_at`, and for anything
+a model touched, `agent_model` and `agent_version`.
+
+The raw source (`original_text`) and the extracted structure
+(`extracted_payload`) are stored in **separate columns on purpose**. Merged
+into one, "did the transcript actually say two teaspoons, or did the model
+decide that?" is unanswerable — and it is the question worth asking about an
+imported recipe. Both are visible on the draft and, after promotion, on the
+recipe.
+
+One provenance row serves a draft and the recipe it becomes: promotion points
+the same row at both, rather than copying it somewhere it can drift. That is
+also why a promoted draft can't be deleted — deleting it would cascade the
+recipe's provenance away.
+
 ## Architecture note: one port, not two
 
 The browser only ever talks to the frontend's origin. `/api/*` is proxied
@@ -118,12 +178,14 @@ backend/
     auth.py              Optional password gate, HMAC session tokens
     agent_zero_client.py Phase 2 stub — intentionally unimplemented
     routers/             One module per resource
-  alembic/versions/      Migrations (0001 initial, 0002 ingredient position)
+    services/            Domain logic: scaling, shopping list, draft validation
+  alembic/versions/      Migrations (0001 initial ... 0005 drafts + provenance)
   docker-entrypoint.sh   Runs migrations, then uvicorn
 frontend/
   app/
     api/[...path]/       Server-side proxy to the backend
     recipes/             Detail, edit and new-recipe pages
+    drafts/              The review queue: propose, validate, promote
     login/               Password gate
     ...                  Dashboard, library, finder, shopping list, calendar
   components/RecipeForm.tsx  Shared by the new and edit pages

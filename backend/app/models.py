@@ -6,6 +6,7 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Enum,
@@ -17,7 +18,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -46,6 +47,34 @@ class AlternateType(str, enum.Enum):
 class MealPlanMode(str, enum.Enum):
     auto = "auto"
     manual = "manual"
+
+
+class DraftStatus(str, enum.Enum):
+    """Where a draft is in the review cycle.
+
+    The point of `ready` is that validation is a recorded event, not a live
+    computation: a draft is only promotable because CookVault said so about
+    *this* payload. Editing the payload drops it back to `draft`.
+    """
+
+    draft = "draft"
+    ready = "ready"
+    promoted = "promoted"
+    discarded = "discarded"
+
+
+class ImportMethod(str, enum.Enum):
+    """How the content physically arrived, separate from where it came from.
+
+    `source_type` says "a YouTube video"; `import_method` says whether a human
+    typed it out or a model extracted it. Only the second one tells you how
+    much to trust the numbers.
+    """
+
+    manual = "manual"
+    paste = "paste"
+    url_fetch = "url_fetch"
+    agent = "agent"
 
 
 class MealType(str, enum.Enum):
@@ -89,6 +118,15 @@ class Recipe(Base):
     # matches the FK's ondelete="CASCADE" in the initial migration.
     meal_plan_entries: Mapped[list[MealPlanEntry]] = relationship(
         back_populates="recipe", cascade="all, delete-orphan", passive_deletes=True
+    )
+    # Set when the recipe was promoted from a draft, or imported. Deleting the
+    # recipe deletes this row (the FK cascades), which also takes it off the
+    # draft it came from -- deliberate: erasing the recipe erases the import.
+    provenance: Mapped[RecipeProvenance | None] = relationship(
+        back_populates="recipe",
+        uselist=False,
+        foreign_keys="RecipeProvenance.recipe_id",
+        passive_deletes=True,
     )
 
 
@@ -180,3 +218,95 @@ class MealPlanEntry(Base):
     servings: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     recipe: Mapped[Recipe] = relationship(back_populates="meal_plan_entries")
+
+
+class RecipeDraft(Base):
+    """A proposed recipe that is not in the cookbook yet.
+
+    Drafts exist so that nothing reaches `recipes` without passing validation
+    and then a human. The lifecycle -- create, edit, validate, promote -- is
+    built and proven by hand first; when an agent is eventually allowed to
+    write here, it gets exactly the same door as the "new draft" button, and
+    no other.
+    """
+
+    __tablename__ = "recipe_drafts"
+    # Declared here as well as in the migration so autogenerate doesn't see the
+    # index as drift and propose dropping it.
+    __table_args__ = (Index("ix_recipe_drafts_status_updated", "status", "updated_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Half-formed by definition: a draft may not have decided on a title yet.
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[DraftStatus] = mapped_column(
+        Enum(DraftStatus, name="draft_status"), default=DraftStatus.draft, nullable=False
+    )
+    # The normalized proposal, shaped like RecipeCreate. Deliberately schemaless
+    # at rest: a draft is allowed to be wrong -- that is what validation is for
+    # -- and columns would reject the very payloads worth reviewing.
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    promoted_recipe_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("recipes.id", ondelete="SET NULL"), nullable=True
+    )
+    promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    promoted_recipe: Mapped[Recipe | None] = relationship()
+    provenance: Mapped[RecipeProvenance | None] = relationship(
+        back_populates="draft",
+        cascade="all, delete-orphan",
+        uselist=False,
+        foreign_keys="RecipeProvenance.draft_id",
+    )
+
+
+class RecipeProvenance(Base):
+    """Where a draft or recipe came from, and who or what shaped it.
+
+    The raw text and the extracted structure are stored separately on purpose.
+    "Did the transcript actually say two teaspoons, or did the model decide
+    that?" is unanswerable once the two are merged, and it is exactly the
+    question worth asking about an imported recipe.
+
+    A row can point at a draft, a recipe, or -- after promotion -- both, which
+    is how a recipe keeps its history once the draft it came from is done.
+    """
+
+    __tablename__ = "recipe_provenance"
+    __table_args__ = (
+        CheckConstraint(
+            "draft_id IS NOT NULL OR recipe_id IS NOT NULL",
+            name="ck_recipe_provenance_has_subject",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    draft_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("recipe_drafts.id", ondelete="CASCADE"), nullable=True, unique=True
+    )
+    recipe_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("recipes.id", ondelete="CASCADE"), nullable=True, unique=True
+    )
+    source_type: Mapped[SourceType] = mapped_column(
+        Enum(SourceType, name="source_type"), default=SourceType.manual, nullable=False
+    )
+    source_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    source_title: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    import_method: Mapped[ImportMethod] = mapped_column(
+        Enum(ImportMethod, name="import_method"), default=ImportMethod.manual, nullable=False
+    )
+    # The raw thing: a transcript, a pasted block, a page's text.
+    original_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # What the extractor produced from it, before any human edit.
+    extracted_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    agent_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    agent_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    imported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    draft: Mapped[RecipeDraft | None] = relationship(back_populates="provenance", foreign_keys=[draft_id])
+    recipe: Mapped[Recipe | None] = relationship(back_populates="provenance", foreign_keys=[recipe_id])

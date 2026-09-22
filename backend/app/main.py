@@ -2,7 +2,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import alternates, auth, finder, import_, ingredients, meal_plan, recipes, shopping_list, steps
+from app.routers import (
+    alternates,
+    auth,
+    drafts,
+    finder,
+    import_,
+    ingredients,
+    meal_plan,
+    recipes,
+    shopping_list,
+    steps,
+)
 
 app = FastAPI(title="CookVault", version="0.1.0")
 
@@ -18,6 +29,7 @@ if settings.cors_origins:
 
 app.include_router(auth.router)
 app.include_router(recipes.router)
+app.include_router(drafts.router)
 app.include_router(ingredients.router)
 app.include_router(steps.router)
 app.include_router(alternates.router)

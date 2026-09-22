@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import { IngredientColumn } from "@/components/IngredientColumn";
+import { ProvenanceCard } from "@/components/ProvenanceCard";
 import { StepList } from "@/components/StepList";
 import { apiFetch } from "@/lib/api";
 import { formatCost } from "@/lib/format";
@@ -266,6 +267,8 @@ function RecipeDetailContent() {
         <h2 className="mb-4 text-lg font-semibold">Steps</h2>
         <StepList steps={recipe.steps} />
       </div>
+
+      {recipe.provenance && <ProvenanceCard provenance={recipe.provenance} />}
 
       <div>
         <h2 className="mb-4 text-lg font-semibold">Alternates</h2>

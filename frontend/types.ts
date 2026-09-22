@@ -58,6 +58,7 @@ export interface RecipeDetail extends RecipeSummary {
    *  always canonical. Null means "as written". */
   scaled_to_servings: number | null;
   applied_scale: string | null;
+  provenance: Provenance | null;
 }
 
 export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
@@ -89,4 +90,54 @@ export interface MealPlanEntry {
   meal_type: MealType | null;
   /** Servings wanted on the day; null means "as the recipe is written". */
   servings: number | null;
+}
+
+export type DraftStatus = "draft" | "ready" | "promoted" | "discarded";
+
+export type ImportMethod = "manual" | "paste" | "url_fetch" | "agent";
+
+export interface Provenance {
+  id: string;
+  draft_id: string | null;
+  recipe_id: string | null;
+  source_type: SourceType;
+  source_url: string | null;
+  source_title: string | null;
+  import_method: ImportMethod;
+  /** The raw source -- a transcript, a pasted block. Kept apart from
+   *  extracted_payload so the two can still be compared. */
+  original_text: string | null;
+  /** What the extractor produced, before any human edit. */
+  extracted_payload: Record<string, unknown> | null;
+  agent_model: string | null;
+  agent_version: string | null;
+  imported_at: string;
+}
+
+export interface DraftIssue {
+  /** "error" blocks promotion; "warning" is worth a look before approving. */
+  severity: "error" | "warning";
+  field: string;
+  message: string;
+}
+
+export interface DraftValidation {
+  ok: boolean;
+  issues: DraftIssue[];
+}
+
+export interface RecipeDraftSummary {
+  id: string;
+  title: string | null;
+  status: DraftStatus;
+  promoted_recipe_id: string | null;
+  promoted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecipeDraftDetail extends RecipeDraftSummary {
+  /** Shaped like a recipe, but not guaranteed to be one yet. */
+  payload: Record<string, unknown>;
+  provenance: Provenance | null;
 }

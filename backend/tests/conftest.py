@@ -44,13 +44,19 @@ def _clean_tables() -> None:
     """Start every test from an empty database.
 
     TRUNCATE ... CASCADE reaches the child tables through their foreign keys;
-    shopping_list_items is listed explicitly because its recipe_id is nullable,
-    so manually-added rows are not reachable from recipes.
+    shopping_list_items and recipe_drafts are listed explicitly because their
+    references to recipes are nullable, so rows that never had a recipe are
+    not reachable from one.
     """
     from app.db import engine
 
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE recipes, shopping_list_items RESTART IDENTITY CASCADE"))
+        conn.execute(
+            text(
+                "TRUNCATE recipes, shopping_list_items, recipe_drafts "
+                "RESTART IDENTITY CASCADE"
+            )
+        )
 
 
 @pytest.fixture
@@ -102,4 +108,23 @@ def recipe_payload() -> dict:
                 "alternate_value": "squash",
             }
         ],
+    }
+
+
+@pytest.fixture
+def draft_payload(recipe_payload: dict) -> dict:
+    """A draft body whose payload is a valid recipe, with real provenance."""
+    return {
+        "title": recipe_payload["title"],
+        "payload": recipe_payload,
+        "provenance": {
+            "source_type": "youtube",
+            "source_url": "https://example.test/watch?v=abc123",
+            "source_title": "The only carbonara video you need",
+            "import_method": "agent",
+            "original_text": "so you want about two zucchini, an apple, plenty of pepper",
+            "extracted_payload": recipe_payload,
+            "agent_model": "some-extractor",
+            "agent_version": "0.1.0",
+        },
     }

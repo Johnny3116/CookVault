@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import type { AlternateType, IngredientCategory, RecipeDetail } from "@/types";
+import type { AlternateType, IngredientCategory } from "@/types";
 
 interface DraftIngredient {
   name: string;
@@ -23,6 +23,43 @@ interface DraftAlternate {
   original_value: string;
   alternate_value: string;
   notes: string;
+}
+
+/** What the form can be seeded from.
+ *
+ * A `RecipeDetail` satisfies this, and so does a draft's payload -- which may
+ * be missing most of its fields, because a draft is allowed to be half-formed.
+ * Hence every field optional and every read defended.
+ */
+export interface RecipeFormInitial {
+  title?: string | null;
+  source_url?: string | null;
+  cook_methods?: string[] | null;
+  prep_time?: number | null;
+  cook_time?: number | null;
+  servings?: number | null;
+  estimated_cost?: number | string | null;
+  tags?: string[] | null;
+  is_favorite?: boolean | null;
+  ingredients?: {
+    name?: string | null;
+    quantity?: number | string | null;
+    unit?: string | null;
+    category?: IngredientCategory | null;
+  }[] | null;
+  steps?: {
+    order?: number | null;
+    instruction_text?: string | null;
+    temperature?: string | null;
+    duration?: string | null;
+    notes?: string | null;
+  }[] | null;
+  alternates?: {
+    type?: AlternateType | null;
+    original_value?: string | null;
+    alternate_value?: string | null;
+    notes?: string | null;
+  }[] | null;
 }
 
 export interface RecipePayload {
@@ -87,7 +124,7 @@ export function RecipeForm({
   submitLabel,
   onSubmit,
 }: {
-  initial?: RecipeDetail;
+  initial?: RecipeFormInitial;
   submitLabel: string;
   onSubmit: (payload: RecipePayload) => Promise<void>;
 }) {
@@ -97,26 +134,26 @@ export function RecipeForm({
   const [servings, setServings] = useState(initial?.servings?.toString() ?? "");
   const [estimatedCost, setEstimatedCost] = useState(initial?.estimated_cost?.toString() ?? "");
   const [sourceUrl, setSourceUrl] = useState(initial?.source_url ?? "");
-  const [tags, setTags] = useState(initial?.tags.join(", ") ?? "");
-  const [cookMethods, setCookMethods] = useState(initial?.cook_methods.join(", ") ?? "");
+  const [tags, setTags] = useState(initial?.tags?.join(", ") ?? "");
+  const [cookMethods, setCookMethods] = useState(initial?.cook_methods?.join(", ") ?? "");
   const [isFavorite, setIsFavorite] = useState(initial?.is_favorite ?? false);
 
   const [ingredients, setIngredients] = useState<DraftIngredient[]>(
-    initial && initial.ingredients.length > 0
+    initial?.ingredients && initial.ingredients.length > 0
       ? initial.ingredients.map((i) => ({
-          name: i.name,
+          name: i.name ?? "",
           quantity: i.quantity?.toString() ?? "",
           unit: i.unit ?? "",
-          category: i.category,
+          category: i.category ?? "misc",
         }))
       : [emptyIngredient("raw_ingredient")],
   );
   const [steps, setSteps] = useState<DraftStep[]>(
-    initial && initial.steps.length > 0
+    initial?.steps && initial.steps.length > 0
       ? [...initial.steps]
-          .sort((a, b) => a.order - b.order)
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
           .map((s) => ({
-            instruction_text: s.instruction_text,
+            instruction_text: s.instruction_text ?? "",
             temperature: s.temperature ?? "",
             duration: s.duration ?? "",
             notes: s.notes ?? "",
@@ -124,10 +161,10 @@ export function RecipeForm({
       : [emptyStep()],
   );
   const [alternates, setAlternates] = useState<DraftAlternate[]>(
-    initial?.alternates.map((a) => ({
-      type: a.type,
-      original_value: a.original_value,
-      alternate_value: a.alternate_value,
+    initial?.alternates?.map((a) => ({
+      type: a.type ?? "ingredient_substitute",
+      original_value: a.original_value ?? "",
+      alternate_value: a.alternate_value ?? "",
       notes: a.notes ?? "",
     })) ?? [],
   );
@@ -290,19 +327,19 @@ export function RecipeForm({
                       placeholder="qty"
                       value={ing.quantity}
                       onChange={(e) => updateIngredient(idx, { quantity: e.target.value })}
-                      className={`w-12 ${tinyInput}`}
+                      className={`w-12 shrink-0 ${tinyInput}`}
                     />
                     <input
                       placeholder="unit"
                       value={ing.unit}
                       onChange={(e) => updateIngredient(idx, { unit: e.target.value })}
-                      className={`w-14 ${tinyInput}`}
+                      className={`w-14 shrink-0 ${tinyInput}`}
                     />
                     <input
                       placeholder="name"
                       value={ing.name}
                       onChange={(e) => updateIngredient(idx, { name: e.target.value })}
-                      className={`flex-1 ${tinyInput}`}
+                      className={`min-w-0 flex-1 ${tinyInput}`}
                     />
                     <button
                       type="button"
