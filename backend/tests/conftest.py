@@ -64,15 +64,16 @@ def _clean_tables(_seeded_aisle_rules) -> None:
     TRUNCATE ... CASCADE reaches the child tables through their foreign keys;
     shopping_list_items and recipe_drafts are listed explicitly because their
     references to recipes are nullable, so rows that never had a recipe are
-    not reachable from one.
+    not reachable from one. meal_plan_drafts has no foreign key at all -- its
+    meals are JSONB -- so nothing would reach it either.
     """
     from app.db import engine
 
     with engine.begin() as conn:
         conn.execute(
             text(
-                "TRUNCATE recipes, shopping_list_items, recipe_drafts "
-                "RESTART IDENTITY CASCADE"
+                "TRUNCATE recipes, shopping_list_items, recipe_drafts, "
+                "meal_plan_drafts RESTART IDENTITY CASCADE"
             )
         )
         # Rules are editable data, so a test that edits one would otherwise

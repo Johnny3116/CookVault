@@ -322,6 +322,47 @@ class RecipeDraft(Base):
     )
 
 
+class MealPlanDraft(Base):
+    """A proposed week, waiting for John to say yes.
+
+    The same shape as a recipe draft and for the same reason: a plan a model
+    produced is a proposal, and proposals go in a queue. Approving one is what
+    creates the actual `meal_plan_entries` rows, which is the only way an entry
+    is ever recorded as `auto`.
+
+    The meals live in JSONB rather than as child rows with foreign keys. A
+    proposal is allowed to be wrong -- it can name a recipe that gets deleted
+    before anyone looks at it -- and a real FK would silently remove a line
+    from the middle of a plan when that happened. Stored as data, the gap is
+    still visible and can be reported at approval time, which is when it
+    matters.
+    """
+
+    __tablename__ = "meal_plan_drafts"
+    __table_args__ = (Index("ix_meal_plan_drafts_status_updated", "status", "updated_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[DraftStatus] = mapped_column(
+        Enum(DraftStatus, name="draft_status"), default=DraftStatus.draft, nullable=False
+    )
+    created_by: Mapped[DraftAuthor] = mapped_column(
+        Enum(DraftAuthor, name="draft_author"), default=DraftAuthor.human, nullable=False
+    )
+    # A list of {date, recipe_id, meal_type, servings, reason}.
+    meals: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    agent_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    agent_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
 class RecipeProvenance(Base):
     """Where a draft or recipe came from, and who or what shaped it.
 

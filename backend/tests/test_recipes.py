@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from sqlalchemy import text
 
 
@@ -249,12 +250,19 @@ def test_delete_cascades_to_children(client, recipe_payload):
         assert conn.execute(text("SELECT count(*) FROM alternates")).scalar() == 0
 
 
-def test_phase_two_endpoints_are_honest_about_being_unbuilt(client):
-    """What is still unbuilt should say 501, not fake a result.
+def test_nothing_is_left_faking_a_result(client):
+    """What is unbuilt should say so rather than return something plausible.
 
-    `/import` used to be listed here. It is implemented now -- see
-    tests/test_import.py, which exercises it with the fetch replaced, because
-    a test that reaches the real network fails for reasons unrelated to this
-    code.
+    This test has outlived both of its subjects. `/import` was the first to go
+    -- see tests/test_import.py. Auto-fill was the second: it proposes a week
+    from the cook log now (tests/test_planning.py) instead of answering 501.
+    What is left unbuilt is the *outbound* Agent Zero client, which is a module
+    rather than an endpoint and raises rather than guessing -- so the assertion
+    here is that nothing is quietly pretending.
     """
-    assert client.post("/meal-plan/auto-fill?week_start=2026-09-20").status_code == 501
+    from app import agent_zero_client
+
+    # Not configured -> AgentZeroNotConfigured; configured -> NotImplementedError.
+    # Either way it refuses rather than returning something made up.
+    with pytest.raises((agent_zero_client.AgentZeroNotConfigured, NotImplementedError)):
+        agent_zero_client.structure_recipe_text("some text")

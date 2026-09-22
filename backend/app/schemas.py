@@ -314,6 +314,60 @@ class MealPlanEntryRead(MealPlanEntryBase):
     id: uuid.UUID
 
 
+class PlannedMeal(BaseModel):
+    """One meal in a proposed week.
+
+    `reason` is why this recipe on this day, shown next to the meal. A plan you
+    cannot interrogate is one you override out of habit.
+    """
+
+    date: CalendarDate
+    recipe_id: uuid.UUID
+    meal_type: MealType = MealType.dinner
+    servings: int | None = Field(default=None, gt=0)
+    reason: str | None = None
+
+
+class AutoFillRequest(BaseModel):
+    """Ask CookVault to propose a week. No model involved -- see
+    services/meal_planning for what "diverse" is made of here."""
+
+    start: CalendarDate
+    days: int = Field(default=7, ge=1, le=28)
+    meal_type: MealType = MealType.dinner
+    servings: int | None = Field(default=None, gt=0)
+    title: str | None = Field(default=None, max_length=255)
+    max_total_time: int | None = Field(default=None, gt=0)
+    max_cost: Decimal | None = Field(default=None, gt=0)
+    tags: list[str] = []
+
+
+class MealPlanDraftSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    title: str | None = None
+    status: DraftStatus
+    created_by: DraftAuthor = DraftAuthor.human
+    note: str | None = None
+    agent_model: str | None = None
+    approved_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class MealPlanDraftDetail(MealPlanDraftSummary):
+    meals: list[PlannedMeal] = []
+    agent_version: str | None = None
+
+
+class MealPlanDraftUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"meals"})
+
+    title: str | None = None
+    note: str | None = None
+    meals: list[PlannedMeal] | None = None
+
+
 class ProvenanceBase(BaseModel):
     """Where a draft or recipe came from, and who or what shaped it."""
 

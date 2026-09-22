@@ -117,6 +117,8 @@ EXPECTED_ROUTES = {
     ("POST", "/agent/recipe-drafts"),
     ("GET", "/agent/recipe-drafts/{draft_id}"),
     ("PATCH", "/agent/recipe-drafts/{draft_id}"),
+    ("POST", "/agent/suggest-meal-plan"),
+    ("POST", "/agent/meal-plan-drafts"),
 }
 
 
@@ -158,7 +160,9 @@ def test_the_manifest_says_what_the_agent_cannot_do(agent):
     # Writes are marked as such; the agent shouldn't have to infer which of
     # its tools change anything.
     writing = {t["name"] for t in body["tools"] if t["writes"]}
-    assert writing == {"create_recipe_draft", "update_recipe_draft"}
+    # Every one of them creates or edits a draft. Nothing here writes a
+    # recipe, a meal plan entry or a shopping list.
+    assert writing == {"create_recipe_draft", "update_recipe_draft", "create_meal_plan_draft"}
 
 
 def test_promotion_is_not_on_this_surface(agent, draft_payload):

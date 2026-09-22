@@ -47,14 +47,18 @@ def test_manual_meal_plan_entries_round_trip(client, recipe_payload):
     assert client.get("/meal-plan?start=2026-10-01&end=2026-10-07").json() == []
 
 
-def test_auto_mode_entries_are_refused_until_phase_two(client, recipe_payload):
+def test_an_entry_cannot_simply_be_labelled_auto(client, recipe_payload):
+    """`auto` records that a week was proposed and approved, not chosen meal by
+    meal. If anyone could set it, it would stop answering "where did this week
+    come from?" -- so it is set in one place only, by approving a plan."""
     recipe_id = client.post("/recipes", json=recipe_payload).json()["id"]
 
     refused = client.post(
         "/meal-plan", json={"date": "2026-09-23", "recipe_id": recipe_id, "mode": "auto"}
     )
 
-    assert refused.status_code == 501
+    assert refused.status_code == 400
+    assert "auto-fill" in refused.json()["detail"]
 
 
 def test_deleting_a_recipe_removes_its_meal_plan_entries(client, recipe_payload):

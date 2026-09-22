@@ -35,7 +35,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas, schemas_agent as sa
 from app.agent_auth import require_agent
 from app.db import get_db
-from app.services import recipe_search
+from app.services import meal_planning, recipe_search
 from app.routers.drafts import _SETTLED, build_draft
 from app.services.drafts import has_errors, validate_payload
 from app.services.recipe_text import parse_recipe_text
@@ -147,6 +147,26 @@ TOOLS: list[sa.ToolDescriptor] = [
         path="/agent/recipe-drafts/{draft_id}",
         writes=True,
         summary="Revise one of your own proposals, while it is still unsettled.",
+    ),
+    sa.ToolDescriptor(
+        name="suggest_meal_plan",
+        method="POST",
+        path="/agent/suggest-meal-plan",
+        writes=False,
+        summary=(
+            "Ranked candidates per day from the cook log, with the reason for each score. "
+            "Stores nothing and plans nothing."
+        ),
+    ),
+    sa.ToolDescriptor(
+        name="create_meal_plan_draft",
+        method="POST",
+        path="/agent/meal-plan-drafts",
+        writes=True,
+        summary=(
+            "Propose a week. It waits for John to approve it, and only approving it "
+            "creates real meal plan entries."
+        ),
     ),
 ]
 
@@ -379,3 +399,135 @@ def update_recipe_draft(
     db.commit()
     db.refresh(draft)
     return _draft_response(draft)
+
+
+# --------------------------------------------------------------------------
+# planning
+# --------------------------------------------------------------------------
+
+
+@router.post("/suggest-meal-plan", response_model=sa.SuggestMealPlanResponse)
+def suggest_meal_plan(payload: sa.SuggestMealPlanRequest, db: Session = Depends(get_db)):
+    """Ranked candidates per day. Stores nothing, plans nothing.
+
+    The variety arithmetic is CookVault's rather than the caller's on purpose.
+    A model asked to "avoid repeating the same staples" will produce a
+    plausible answer that quietly repeats them, and nothing about the answer
+    will say so; days-since-last-cooked is a number anyone can check, and every
+    candidate carries the sentence explaining its score.
+
+    What is left for the agent is the part a number cannot settle: taste,
+    balance across a week, what suits a Tuesday, what John said last time.
+    """
+    dates = meal_planning.dates_from(payload.start, payload.days)
+    ranked = meal_planning.rank(
+        db,
+        on=payload.start,
+        window=(dates[0], dates[-1]),
+        max_total_time=payload.max_total_time,
+        max_cost=payload.max_cost,
+        tags=payload.tags,
+        exclude_recipe_ids=payload.exclude_recipe_ids,
+    )
+
+    if not ranked:
+        return sa.SuggestMealPlanResponse(
+            days=[sa.DaySuggestion(date=day, candidates=[]) for day in dates],
+            note="No recipes matched those filters.",
+        )
+
+    dealt = meal_planning.deal(ranked, payload.days, payload.per_day)
+    note = (
+        f"{len(ranked)} recipes matched. Candidates are dealt across the days, so taking the "
+        "first suggestion for each day gives a different recipe each day."
+    )
+    if len(ranked) < payload.days:
+        # Said plainly rather than left for the agent to notice. It has to
+        # decide whether to repeat something or leave a day empty, and that is
+        # a decision, not a detail.
+        note += (
+            f" Only {len(ranked)} recipes for {payload.days} days -- some days will have to "
+            "repeat or stay empty."
+        )
+
+    return sa.SuggestMealPlanResponse(
+        days=[
+            sa.DaySuggestion(
+                date=day,
+                candidates=[
+                    sa.MealCandidate(
+                        recipe=_summary(scored.recipe), score=scored.score, reason=scored.reason
+                    )
+                    for scored in candidates
+                ],
+            )
+            for day, candidates in zip(dates, dealt)
+        ],
+        note=note,
+    )
+
+
+@router.post(
+    "/meal-plan-drafts",
+    response_model=sa.MealPlanDraftResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_meal_plan_draft(
+    payload: sa.CreateMealPlanDraftRequest, db: Session = Depends(get_db)
+):
+    """Propose a week. Nothing is planned until John approves it.
+
+    A meal naming a recipe that does not exist is refused here -- unlike a
+    recipe draft, where being wrong is the point. The difference is that a
+    recipe draft's payload is content to review, while a missing recipe id is
+    not a judgement call about content: it is a reference that cannot resolve,
+    and accepting it would put a proposal in the queue that can never be
+    approved.
+    """
+    if not payload.meals:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="A plan needs at least one meal."
+        )
+
+    wanted = {meal.recipe_id for meal in payload.meals}
+    found = set(
+        db.execute(
+            select(models.Recipe.id).where(models.Recipe.id.in_(wanted))
+        ).scalars()
+    )
+    if missing := wanted - found:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"No such recipe: {', '.join(sorted(str(m) for m in missing))}",
+        )
+
+    draft = models.MealPlanDraft(
+        title=payload.title,
+        created_by=models.DraftAuthor.agent,
+        meals=[meal.model_dump(mode="json") for meal in payload.meals],
+        note=payload.note,
+        agent_model=payload.agent_model,
+        agent_version=payload.agent_version,
+        # Its references resolve and its shape is checked, which is all
+        # "ready" claims. Whether it is a good week is John's call.
+        status=models.DraftStatus.ready,
+    )
+    db.add(draft)
+    db.commit()
+    db.refresh(draft)
+    return _plan_response(draft)
+
+
+def _plan_response(draft: models.MealPlanDraft) -> sa.MealPlanDraftResponse:
+    dates = sorted(meal["date"] for meal in draft.meals) if draft.meals else []
+    return sa.MealPlanDraftResponse(
+        id=draft.id,
+        status=draft.status,
+        title=draft.title,
+        note=draft.note,
+        meals=draft.meals,
+        covers_from=dates[0] if dates else None,
+        covers_to=dates[-1] if dates else None,
+        created_at=draft.created_at,
+        updated_at=draft.updated_at,
+    )
