@@ -17,11 +17,31 @@ const COLUMNS: { category: IngredientCategory; label: string }[] = [
   { category: "misc", label: "Misc" },
 ];
 
+const PRESETS = [0.5, 1, 1.5, 2];
+
+function presetTarget(baseServings: number | null, multiplier: number) {
+  return Math.round((baseServings ?? 0) * multiplier);
+}
+
+// 2.5 reads as "2.5", 2 reads as "2" -- not "2.0".
+function formatScale(value: number) {
+  return Number(value.toFixed(2)).toString();
+}
+
 function RecipeDetailContent() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [recipe, setRecipe] = useState<RecipeDetailType | null>(null);
+
+  // The number field keeps its own text while it is being typed. Committing on
+  // every keystroke would navigate (and refetch) for "1" on the way to "10",
+  // and would make the field impossible to clear.
+  const currentTarget = recipe?.scaled_to_servings ?? recipe?.servings ?? null;
+  const [servingsDraft, setServingsDraft] = useState("");
+  useEffect(() => {
+    setServingsDraft(currentTarget === null ? "" : String(currentTarget));
+  }, [currentTarget]);
 
   // The target lives in the URL, not component state, so that a planned meal
   // can link straight to the servings it was planned for -- the calendar links
@@ -91,10 +111,30 @@ function RecipeDetailContent() {
     : recipe.servings;
   const isScaled = recipe.scaled_to_servings !== null;
 
+  // Which preset, if any, the current target corresponds to -- and the real
+  // multiplier when none of them does.
+  const matchedPresetTarget =
+    PRESETS.map((m) => presetTarget(baseServings, m)).find((t) => t === currentTarget) ?? null;
+  const customScale =
+    baseServings && currentTarget ? currentTarget / baseServings : null;
+
+  function commitServings() {
+    const value = Number(servingsDraft);
+    if (servingsDraft.trim() === "" || !Number.isFinite(value) || value <= 0) {
+      setServingsDraft(currentTarget === null ? "" : String(currentTarget));
+      return;
+    }
+    setServings(value === baseServings ? null : Math.round(value));
+  }
+
   const meta = [
     recipe.prep_time ? `${recipe.prep_time}m prep` : null,
     recipe.cook_time ? `${recipe.cook_time}m cook` : null,
-    recipe.servings ? `serves ${recipe.servings}` : null,
+    // The saved recipe's own yield, not the scaled target: prep and cook time
+    // beside it do not scale either, and the row below already states the
+    // target. "serves 10 ... the saved recipe is unchanged" read as a
+    // contradiction.
+    baseServings ? `serves ${baseServings}` : null,
     formatCost(recipe.estimated_cost) ? `~${formatCost(recipe.estimated_cost)}` : null,
     recipe.cook_methods.length > 0 ? recipe.cook_methods.join(", ") : null,
   ].filter(Boolean);
@@ -150,35 +190,55 @@ function RecipeDetailContent() {
         <span className="text-sm font-medium">Make for</span>
         {canScale ? (
           <>
-            {[0.5, 1, 1.5, 2].map((multiplier) => {
-              const target = Math.round((baseServings ?? 0) * multiplier);
-              const active = (recipe.scaled_to_servings ?? recipe.servings) === target;
+            {PRESETS.map((multiplier) => {
+              const target = presetTarget(baseServings, multiplier);
               return (
                 <button
                   key={multiplier}
                   onClick={() => setServings(multiplier === 1 ? null : target)}
+                  aria-pressed={target === matchedPresetTarget}
                   className={`rounded border px-3 py-1 text-sm ${
-                    active ? "border-neutral-800 bg-neutral-800 text-white" : "border-neutral-300"
+                    target === matchedPresetTarget
+                      ? "border-neutral-800 bg-neutral-800 text-white"
+                      : "border-neutral-300"
                   }`}
                 >
-                  {multiplier}×
+                  {formatScale(multiplier)}×
                 </button>
               );
             })}
+            {/* A target the presets can't express -- 10 from a base of 4, say --
+                used to leave every button unlit, which read as a dead control.
+                The row now always carries exactly one lit chip, and when that
+                chip is this one it is a readout rather than a button: there is
+                nothing to navigate to, we are already there. */}
+            {matchedPresetTarget === null && customScale !== null && (
+              <span
+                aria-current="true"
+                title="Custom scale"
+                className="rounded border border-neutral-800 bg-neutral-800 px-3 py-1 text-sm text-white"
+              >
+                {formatScale(customScale)}×
+              </span>
+            )}
             <input
               type="number"
               min={1}
               aria-label="Servings"
-              value={recipe.scaled_to_servings ?? recipe.servings ?? ""}
-              onChange={(e) => {
-                const value = Number(e.target.value);
-                setServings(Number.isFinite(value) && value > 0 ? value : null);
+              value={servingsDraft}
+              onChange={(e) => setServingsDraft(e.target.value)}
+              onBlur={commitServings}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitServings();
+                if (e.key === "Escape") {
+                  setServingsDraft(currentTarget === null ? "" : String(currentTarget));
+                }
               }}
               className="w-20 rounded border border-neutral-300 px-2 py-1 text-sm"
             />
             <span className="text-sm text-neutral-500">servings</span>
             {isScaled && (
-              <span className="text-xs text-neutral-500">
+              <span className="basis-full text-xs text-neutral-500 sm:basis-auto">
                 scaled {recipe.applied_scale}× from {baseServings} — the saved recipe is unchanged
               </span>
             )}
@@ -190,7 +250,7 @@ function RecipeDetailContent() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-4">
         {COLUMNS.map((column) => (
           <IngredientColumn
             key={column.category}
