@@ -48,6 +48,19 @@ export interface RecipeSummary {
   is_favorite: boolean;
   created_at: string;
   updated_at: string;
+  /** Derived from the cook log, never stored. */
+  times_cooked: number;
+  last_cooked_on: string | null;
+}
+
+export interface CookLogEntry {
+  id: string;
+  recipe_id: string;
+  cooked_on: string;
+  servings_made: number | null;
+  rating: number | null;
+  notes: string | null;
+  created_at: string;
 }
 
 export interface RecipeDetail extends RecipeSummary {

@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, nullsfirst, select
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -27,9 +27,12 @@ def list_recipes(
     max_total_time: int | None = None,
     cook_method: str | None = None,
     search: str | None = None,
+    sort: str = "updated",
     db: Session = Depends(get_db),
 ):
     """List recipes, narrowed by any combination of the filters.
+
+    `sort` is one of updated (default), last_cooked, most_cooked.
 
     max_total_time is prep + cook in minutes. A recipe that records neither
     counts as 0 rather than being excluded -- an unknown time is not a long
@@ -47,7 +50,17 @@ def list_recipes(
         stmt = stmt.where(total <= max_total_time)
     if search is not None and search.strip():
         stmt = stmt.where(models.Recipe.title.ilike(f"%{search.strip()}%"))
-    stmt = stmt.order_by(models.Recipe.updated_at.desc())
+    if sort == "last_cooked":
+        # "What haven't I made in ages." Never-cooked sorts first, because
+        # never is the extreme case of a long time ago, not the absence of an
+        # answer.
+        stmt = stmt.order_by(
+            nullsfirst(models.Recipe.last_cooked_on.asc()), models.Recipe.title
+        )
+    elif sort == "most_cooked":
+        stmt = stmt.order_by(models.Recipe.times_cooked.desc(), models.Recipe.title)
+    else:
+        stmt = stmt.order_by(models.Recipe.updated_at.desc())
     return db.execute(stmt).scalars().all()
 
 

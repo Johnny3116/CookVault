@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import ClassVar
 
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, model_validator
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, model_validator
 
 from app.models import (
     AlternateType,
@@ -192,6 +192,10 @@ class RecipeSummary(RecipeBase):
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    # Derived from the cook log, never stored: a counter and a log can
+    # disagree, and then something has to decide which one lied.
+    times_cooked: int = 0
+    last_cooked_on: CalendarDate | None = None
 
 
 class RecipeDetail(RecipeSummary):
@@ -407,3 +411,44 @@ class AisleResolution(BaseModel):
     name: str
     aisle: ShoppingAisle
     matched_term: str | None = None
+
+
+class CookLogBase(BaseModel):
+    """One occasion of cooking something."""
+
+    cooked_on: CalendarDate
+    # What you actually made, which is not always what you planned. Bounded
+    # here as well as by the check constraint, so a nonsensical value is a 422
+    # about the request rather than a 500 from the database.
+    servings_made: int | None = Field(default=None, gt=0)
+    rating: int | None = Field(default=None, ge=1, le=5)
+    notes: str | None = None
+
+
+class CookLogCreate(CookLogBase):
+    # Defaults to today, because the overwhelmingly common case is logging a
+    # meal you have just eaten.
+    cooked_on: CalendarDate | None = None
+
+
+class CookLogUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"cooked_on"})
+
+    cooked_on: CalendarDate | None = None
+    servings_made: int | None = Field(default=None, gt=0)
+    rating: int | None = Field(default=None, ge=1, le=5)
+    notes: str | None = None
+
+
+class CookLogRead(CookLogBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    recipe_id: uuid.UUID
+    created_at: datetime
+
+
+class CookLogEntry(CookLogRead):
+    """A log line with the recipe's title, for the "recently cooked" feed --
+    otherwise reading it means a lookup per row."""
+
+    recipe_title: str

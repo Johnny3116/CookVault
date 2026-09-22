@@ -19,7 +19,8 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import select
+from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from app.db import Base
 
@@ -139,6 +140,15 @@ class Recipe(Base):
     # matches the FK's ondelete="CASCADE" in the initial migration.
     meal_plan_entries: Mapped[list[MealPlanEntry]] = relationship(
         back_populates="recipe", cascade="all, delete-orphan", passive_deletes=True
+    )
+    # The FK is ON DELETE CASCADE, so the database is what actually removes a
+    # deleted recipe's history -- these options keep the session's view of it
+    # consistent, they are not the guarantee.
+    cook_log: Mapped[list[CookLog]] = relationship(
+        back_populates="recipe",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="CookLog.cooked_on.desc()",
     )
     # Set when the recipe was promoted from a draft, or imported. Deleting the
     # recipe deletes this row (the FK cascades), which also takes it off the
@@ -360,3 +370,48 @@ class AisleRule(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class CookLog(Base):
+    """One occasion of actually cooking a recipe.
+
+    The point of keeping these is the questions they answer: what have I not
+    made in ages, what do I come back to, and what did I think last time. The
+    rating and note belong to the occasion rather than to the recipe, because
+    "too salty" is about the night you made it, not about the recipe forever.
+    """
+
+    __tablename__ = "cook_log"
+    __table_args__ = (Index("ix_cook_log_recipe_cooked_on", "recipe_id", "cooked_on"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    recipe_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False
+    )
+    cooked_on: Mapped[date] = mapped_column(Date, nullable=False)
+    # What you actually made, which is not always what you planned.
+    servings_made: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    recipe: Mapped[Recipe] = relationship(back_populates="cook_log")
+
+
+# Derived from the log rather than kept as counters on the recipe. A counter
+# and a log can disagree, and then something has to decide which one lied;
+# these two cannot drift because there is only one source.
+Recipe.times_cooked = column_property(
+    select(func.count(CookLog.id))
+    .where(CookLog.recipe_id == Recipe.id)
+    .correlate_except(CookLog)
+    .scalar_subquery()
+)
+Recipe.last_cooked_on = column_property(
+    select(func.max(CookLog.cooked_on))
+    .where(CookLog.recipe_id == Recipe.id)
+    .correlate_except(CookLog)
+    .scalar_subquery()
+)
