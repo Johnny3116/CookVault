@@ -3,8 +3,9 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import ClassVar
 
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, model_validator
 
 from app.models import (
     AlternateType,
@@ -15,6 +16,36 @@ from app.models import (
     MealType,
     SourceType,
 )
+
+class PatchModel(BaseModel):
+    """Base for PATCH payloads.
+
+    Every field is optional, which is what makes a partial update partial --
+    but optional is not the same as nullable. `{"title": null}` is *set*, so it
+    survives `exclude_unset` and reaches a NOT NULL column as None, where the
+    database raises IntegrityError and FastAPI reports it as a 500: the app
+    blaming itself for what was really a bad request.
+
+    Subclasses list the fields backed by NOT NULL columns. Nullable columns are
+    deliberately absent from that list, because clearing one is a legitimate
+    edit -- `source_url: null` means "forget where this came from".
+    """
+
+    non_nullable: ClassVar[frozenset[str]] = frozenset()
+
+    @model_validator(mode="after")
+    def _reject_null_for_non_nullable(self):
+        nulled = sorted(
+            field
+            for field in self.non_nullable
+            # `in model_fields_set` is the whole distinction: sent-as-null, not
+            # merely absent.
+            if field in self.model_fields_set and getattr(self, field) is None
+        )
+        if nulled:
+            raise ValueError(f"these fields cannot be null: {', '.join(nulled)}")
+        return self
+
 
 # A field named `date` that carries a default puts `date = <default>` in its
 # class body, which shadows the imported type when the annotation is resolved.
@@ -33,7 +64,9 @@ class IngredientCreate(IngredientBase):
     pass
 
 
-class IngredientUpdate(BaseModel):
+class IngredientUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"name", "category", "position"})
+
     """Every field optional -- this is what makes PATCH actually partial."""
 
     name: str | None = None
@@ -62,7 +95,9 @@ class StepCreate(StepBase):
     pass
 
 
-class StepUpdate(BaseModel):
+class StepUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"order", "instruction_text"})
+
     """Every field optional -- this is what makes PATCH actually partial."""
 
     order: int | None = None
@@ -89,7 +124,9 @@ class AlternateCreate(AlternateBase):
     pass
 
 
-class AlternateUpdate(BaseModel):
+class AlternateUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"type", "original_value", "alternate_value"})
+
     """Every field optional -- this is what makes PATCH actually partial."""
 
     type: AlternateType | None = None
@@ -123,7 +160,9 @@ class RecipeCreate(RecipeBase):
     alternates: list[AlternateCreate] = []
 
 
-class RecipeUpdate(BaseModel):
+class RecipeUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"title", "source_type", "cook_methods", "tags", "is_favorite"})
+
     title: str | None = None
     source_type: SourceType | None = None
     source_url: str | None = None
@@ -178,7 +217,9 @@ class ShoppingListItemCreate(ShoppingListItemBase):
     recipe_id: uuid.UUID | None = None
 
 
-class ShoppingListItemUpdate(BaseModel):
+class ShoppingListItemUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"name", "category", "is_checked"})
+
     name: str | None = None
     quantity: Decimal | None = None
     unit: str | None = None
@@ -219,7 +260,9 @@ class MealPlanEntryCreate(MealPlanEntryBase):
     pass
 
 
-class MealPlanEntryUpdate(BaseModel):
+class MealPlanEntryUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"date"})
+
     date: CalendarDate | None = None
     meal_type: MealType | None = None
     servings: int | None = None
@@ -283,7 +326,9 @@ class RecipeDraftCreate(BaseModel):
     provenance: ProvenanceCreate | None = None
 
 
-class RecipeDraftUpdate(BaseModel):
+class RecipeDraftUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"payload"})
+
     title: str | None = None
     payload: dict | None = None
 

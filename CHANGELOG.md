@@ -147,6 +147,23 @@ dates are commit dates rather than release dates.
 
 ### Fixed
 
+- PATCH with an explicit null on a NOT NULL column returned a 500. Every field
+  on a PATCH schema is optional, but `{"title": null}` is *set*, so it survived
+  `exclude_unset`, reached the column as None and surfaced as an
+  IntegrityError — the app blaming itself for a bad request. A `PatchModel`
+  base now rejects it with a 422 naming the fields. Nullable columns are
+  deliberately still clearable: `source_url: null` is a legitimate edit.
+  (From a patch by John; extended from the two schemas it covered to all seven
+  PATCH surfaces, which had the same hole — 18 separate 500s.)
+- `PATCH /drafts/{id}` with a null payload previously answered 200 and
+  silently ignored it. It is a 422 now: a request that changed nothing should
+  not report success.
+- A 422 whose `detail` is FastAPI's list of field errors crashed the import
+  page outright — React refuses to render an object as a child, so the whole
+  page became "Application error". Error bodies are flattened to text before
+  display, and the promote handler now checks the shape before treating a 422
+  as a validation result.
+
 - Ingredient lines written as `500g beef mince` were filed as instructions:
   the amount and unit were only split apart inside the ingredient parser, and
   the code deciding whether a line *was* an ingredient never got that far.

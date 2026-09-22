@@ -7,7 +7,18 @@ import { useParams, useRouter } from "next/navigation";
 import { ProvenanceCard } from "@/components/ProvenanceCard";
 import { RecipeForm, type RecipeFormInitial, type RecipePayload } from "@/components/RecipeForm";
 import { ApiError, apiFetch } from "@/lib/api";
+import { describeApiError } from "@/lib/errors";
 import type { DraftValidation, RecipeDetail, RecipeDraftDetail } from "@/types";
+
+/** A refusal-to-promote body, or null if this 422 is some other shape. */
+function parseValidation(err: ApiError): DraftValidation | null {
+  try {
+    const detail = JSON.parse(err.body).detail;
+    return detail && Array.isArray(detail.issues) ? (detail as DraftValidation) : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function DraftDetailPage() {
   const params = useParams<{ id: string }>();
@@ -71,17 +82,16 @@ export default function DraftDetailPage() {
       return;
     } catch (err) {
       // A refused promotion is the system doing its job, so show the reasons
-      // rather than a wall of JSON.
-      if (err instanceof ApiError && err.status === 422) {
-        try {
-          const detail = JSON.parse(err.body).detail as DraftValidation;
-          setValidation(detail);
-          setError("This draft isn't ready yet — see below.");
-        } catch {
-          setError(err.message);
-        }
+      // rather than a wall of JSON. It carries a DraftValidation. Anything else with a
+      // 422 -- request validation, say -- carries FastAPI's list of field
+      // errors, which is a different shape and must not be handed to the
+      // issues renderer.
+      const detail = err instanceof ApiError && err.status === 422 ? parseValidation(err) : null;
+      if (detail) {
+        setValidation(detail);
+        setError("This draft isn't ready yet — see below.");
       } else {
-        setError(err instanceof Error ? err.message : "Failed to promote");
+        setError(describeApiError(err, "Failed to promote"));
       }
     } finally {
       setBusy(false);

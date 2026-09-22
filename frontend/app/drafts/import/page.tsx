@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { ApiError, apiFetch } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
+import { describeApiError } from "@/lib/errors";
 import type { RecipeDraftDetail } from "@/types";
 
 type Mode = "url" | "paste";
@@ -42,15 +43,7 @@ export default function ImportPage() {
     } catch (err) {
       // The backend explains refusals in plain words (a private address, a
       // 404, an empty paste). Show that rather than a stack of JSON.
-      if (err instanceof ApiError) {
-        try {
-          setError(JSON.parse(err.body).detail ?? err.message);
-        } catch {
-          setError(err.message);
-        }
-      } else {
-        setError(err instanceof Error ? err.message : "Import failed");
-      }
+      setError(describeApiError(err, "Import failed"));
     } finally {
       setBusy(false);
     }
