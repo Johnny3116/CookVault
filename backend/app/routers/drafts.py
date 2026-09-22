@@ -53,6 +53,23 @@ def _as_validation(issues: list[DraftIssue]) -> schemas.DraftValidation:
     )
 
 
+def build_draft(
+    title: str | None,
+    payload: dict,
+    provenance: schemas.ProvenanceCreate | None,
+) -> models.RecipeDraft:
+    """Construct a draft and its provenance.
+
+    Shared with the import router so that an imported draft is the same kind
+    of object as a hand-written one, arriving in the same state -- there is no
+    second, softer way in.
+    """
+    draft = models.RecipeDraft(title=title, payload=payload)
+    if provenance is not None:
+        draft.provenance = models.RecipeProvenance(**provenance.model_dump())
+    return draft
+
+
 @router.get("", response_model=list[schemas.RecipeDraftSummary])
 def list_drafts(status_filter: models.DraftStatus | None = None, db: Session = Depends(get_db)):
     """Drafts, newest activity first -- the list is a work queue."""
@@ -65,9 +82,7 @@ def list_drafts(status_filter: models.DraftStatus | None = None, db: Session = D
 
 @router.post("", response_model=schemas.RecipeDraftDetail, status_code=status.HTTP_201_CREATED)
 def create_draft(payload: schemas.RecipeDraftCreate, db: Session = Depends(get_db)):
-    draft = models.RecipeDraft(title=payload.title, payload=payload.payload)
-    if payload.provenance is not None:
-        draft.provenance = models.RecipeProvenance(**payload.provenance.model_dump())
+    draft = build_draft(payload.title, payload.payload, payload.provenance)
     db.add(draft)
     db.commit()
     db.refresh(draft)

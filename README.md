@@ -30,9 +30,10 @@ request/response JSON contract hasn't been verified yet — see
 - The frontend has no tests of its own; CI typechecks and builds it, but nothing
   exercises the pages. The draft lifecycle has been driven end to end in a real
   browser, but by hand rather than by anything that runs in CI.
-- Drafts are proposed by hand only. `POST /import` is still a `501`: nothing
-  fills a draft automatically yet, which is the next step and the reason the
-  lifecycle was built first.
+- Import covers pasted text and web pages. Video transcripts are not handled,
+  and no model is involved in structuring — see "Importing" above.
+- The text parser is a heuristic. It reads the shapes real recipes use, but an
+  unusual layout will land wrong in the draft and need fixing by hand.
 - Provenance can only be set when a draft is created, not edited afterwards.
   That is deliberate for now — where something came from doesn't change — but
   it means a typo in a source title is fixed by starting over.
@@ -132,6 +133,42 @@ it.
 - **Promoted and discarded drafts are frozen.** They are the record of what was
   approved or rejected, not an editing surface.
 
+### Importing
+
+`POST /import` (a URL) and `POST /import/paste` (text) both create a **draft**.
+There is no flag to skip that: an importer reads text somebody else wrote and
+is sometimes wrong about it, so the review queue is where its output belongs
+by construction rather than by convention.
+
+Both paths are deterministic — no model, no API key:
+
+- **A URL** is fetched and its `schema.org/Recipe` JSON-LD read if present.
+  Most recipe sites publish it because Google asks them to, and it carries the
+  amounts the author actually typed, so this is extraction rather than
+  guessing. Without it, the page text goes through the same heuristic as a
+  paste, which is rougher.
+- **Pasted text** goes through `services/recipe_text.py`: amounts ("1 1/2",
+  "½", "400g", "2-3" → its lower bound), units, and a first guess at which of
+  the four columns each ingredient belongs to. Step numbers come out as 1..n
+  by construction, so a parsed draft never trips validation's sequence check
+  on the parser's account.
+
+The parser is a heuristic and will sometimes be wrong; it is only defensible
+because nothing it produces reaches the cookbook unreviewed.
+
+**URLs are checked before they are fetched.** The server fetches whatever it
+is handed, so `check_url` resolves the host first and refuses loopback,
+private, link-local, reserved and multicast addresses, and anything that is
+not http(s). A recipe never lives at a private address, and without this a
+pasted link could make CookVault fetch from inside the Tailscale network and
+store the reply.
+
+**Not built:** video transcripts and model-assisted structuring. Those need
+yt-dlp and a verified Agent Zero contract (`app/agent_zero_client.py`). When
+they land they produce the same payload and create a draft through the same
+function; `import_method` on the provenance row is what tells them apart
+afterwards.
+
 ### Provenance
 
 `recipe_provenance` records where a draft or recipe came from: `source_type`,
@@ -178,14 +215,15 @@ backend/
     auth.py              Optional password gate, HMAC session tokens
     agent_zero_client.py Phase 2 stub — intentionally unimplemented
     routers/             One module per resource
-    services/            Domain logic: scaling, shopping list, draft validation
+    services/            Domain logic: scaling, shopping list, validation,
+                         recipe-text parsing, web import
   alembic/versions/      Migrations (0001 initial ... 0005 drafts + provenance)
   docker-entrypoint.sh   Runs migrations, then uvicorn
 frontend/
   app/
     api/[...path]/       Server-side proxy to the backend
     recipes/             Detail, edit and new-recipe pages
-    drafts/              The review queue: propose, validate, promote
+    drafts/              The review queue: import, propose, validate, promote
     login/               Password gate
     ...                  Dashboard, library, finder, shopping list, calendar
   components/RecipeForm.tsx  Shared by the new and edit pages

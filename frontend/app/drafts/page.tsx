@@ -47,9 +47,17 @@ export default function DraftsPage() {
             validation and you promote it.
           </p>
         </div>
-        <Link href="/drafts/new" className="rounded bg-neutral-800 px-3 py-2 text-sm text-white">
-          New draft
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/drafts/import"
+            className="rounded border border-neutral-300 px-3 py-2 text-sm"
+          >
+            Import
+          </Link>
+          <Link href="/drafts/new" className="rounded bg-neutral-800 px-3 py-2 text-sm text-white">
+            New draft
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">

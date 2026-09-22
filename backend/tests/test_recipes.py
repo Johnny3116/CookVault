@@ -250,6 +250,11 @@ def test_delete_cascades_to_children(client, recipe_payload):
 
 
 def test_phase_two_endpoints_are_honest_about_being_unbuilt(client):
-    """These should say 501, not fake a result."""
-    assert client.post("/import", json={"url": "https://example.com"}).status_code == 501
+    """What is still unbuilt should say 501, not fake a result.
+
+    `/import` used to be listed here. It is implemented now -- see
+    tests/test_import.py, which exercises it with the fetch replaced, because
+    a test that reaches the real network fails for reasons unrelated to this
+    code.
+    """
     assert client.post("/meal-plan/auto-fill?week_start=2026-09-20").status_code == 501

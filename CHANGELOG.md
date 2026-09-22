@@ -11,6 +11,24 @@ dates are commit dates rather than release dates.
 
 ### Added
 
+- `httpx` is now a runtime dependency, not just a test one: URL import needs an
+  HTTP client.
+- **Import into a draft.** `POST /import` takes a URL, `POST /import/paste`
+  takes text, and both create a draft — never a recipe, with no flag to skip
+  the review. `POST /import` previously returned `501`.
+- URL import reads the page's `schema.org/Recipe` JSON-LD when it is there, so
+  the amounts are the ones the publisher typed rather than something inferred,
+  and falls back to the text heuristic when it is not.
+- `backend/app/services/recipe_text.py` parses written recipes: mixed and
+  vulgar fractions ("1 1/2", "½", "1½"), glued amounts ("400g"), ranges (lower
+  bound), `Ingredients:`/`Method:` headings when present, and a first guess at
+  the four ingredient columns. Step numbers are assigned by position, so a
+  parsed draft cannot trip validation's sequence check.
+- `backend/app/services/web_import.py` fetches pages and refuses to fetch
+  anything that is not a public http(s) address — loopback, private,
+  link-local, reserved and multicast hosts are rejected after DNS resolution,
+  so a pasted link can't make CookVault read something inside the network.
+- An import page in the UI (URL or paste), reachable from the drafts queue.
 - **Recipe drafts** (migration `0005`). A staging area in front of the
   cookbook: `POST /drafts` to propose, `PATCH` to edit, `/validate` to check,
   `/promote` to turn into a real recipe, `/discard` to reject. Promotion is the
@@ -128,6 +146,18 @@ dates are commit dates rather than release dates.
   alternate by kind.
 
 ### Fixed
+
+- Ingredient lines written as `500g beef mince` were filed as instructions:
+  the amount and unit were only split apart inside the ingredient parser, and
+  the code deciding whether a line *was* an ingredient never got that far.
+- An amountless line among the ingredients ("salt and pepper to taste") became
+  a step when the recipe had no `Ingredients:` heading. What makes it an
+  ingredient is sitting in a run of them, so that is now the rule — and the
+  run ends at the first line that reads like a sentence.
+- `"stock"` appeared in both the spice and pantry keyword lists, so its column
+  was decided by the order of the checks rather than by anything meaningful.
+  It now matches how the recipes already in the library are filed, and the two
+  lists are asserted disjoint.
 
 - The scale row's preset chips only lit up at 0.5/1/1.5/2× of the recipe's
   yield, so a meal planned for ten from a recipe serving four left every chip

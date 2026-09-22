@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict
 
 from app.models import (
     AlternateType,
@@ -302,3 +302,22 @@ class RecipeDraftSummary(BaseModel):
 class RecipeDraftDetail(RecipeDraftSummary):
     payload: dict = {}
     provenance: ProvenanceRead | None = None
+
+
+class ImportUrlRequest(BaseModel):
+    """Import a recipe page. The result is always a draft, never a recipe."""
+
+    url: AnyHttpUrl
+    source_type: SourceType = SourceType.web
+    source_title: str | None = None
+
+
+class ImportPasteRequest(BaseModel):
+    """Import pasted recipe text."""
+
+    text: str
+    # Overrides whatever the parser guessed from the first line.
+    title: str | None = None
+    source_type: SourceType = SourceType.manual
+    source_title: str | None = None
+    source_url: str | None = None
