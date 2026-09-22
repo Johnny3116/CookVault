@@ -57,6 +57,7 @@ def build_draft(
     title: str | None,
     payload: dict,
     provenance: schemas.ProvenanceCreate | None,
+    note: str | None = None,
 ) -> models.RecipeDraft:
     """Construct a draft and its provenance.
 
@@ -64,7 +65,7 @@ def build_draft(
     of object as a hand-written one, arriving in the same state -- there is no
     second, softer way in.
     """
-    draft = models.RecipeDraft(title=title, payload=payload)
+    draft = models.RecipeDraft(title=title, payload=payload, note=note)
     if provenance is not None:
         draft.provenance = models.RecipeProvenance(**provenance.model_dump())
     return draft
@@ -82,7 +83,7 @@ def list_drafts(status_filter: models.DraftStatus | None = None, db: Session = D
 
 @router.post("", response_model=schemas.RecipeDraftDetail, status_code=status.HTTP_201_CREATED)
 def create_draft(payload: schemas.RecipeDraftCreate, db: Session = Depends(get_db)):
-    draft = build_draft(payload.title, payload.payload, payload.provenance)
+    draft = build_draft(payload.title, payload.payload, payload.provenance, payload.note)
     db.add(draft)
     db.commit()
     db.refresh(draft)
@@ -110,6 +111,8 @@ def update_draft(
     data = payload.model_dump(exclude_unset=True)
     if "title" in data:
         draft.title = data["title"]
+    if "note" in data:
+        draft.note = data["note"]
     if "payload" in data and data["payload"] is not None:
         draft.payload = data["payload"]
         if draft.status == models.DraftStatus.ready:

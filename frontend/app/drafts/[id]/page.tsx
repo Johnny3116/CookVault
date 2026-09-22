@@ -129,7 +129,16 @@ export default function DraftDetailPage() {
           <p className="mt-1 text-sm text-neutral-500">
             status: <span className="font-medium">{draft.status}</span>
             {draft.status === "ready" && " — validated, waiting on you"}
+            {draft.created_by === "agent" && " — proposed by an agent"}
           </p>
+          {/* What the proposer was unsure about, addressed to the reviewer.
+              It never becomes part of the recipe: "I couldn't tell if that was
+              2 tsp or 2 tbsp" is about the proposal, not the dish. */}
+          {draft.note && (
+            <p className="mt-2 max-w-2xl rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              {draft.note}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link href="/drafts" className="rounded border border-neutral-300 px-3 py-1 text-sm">

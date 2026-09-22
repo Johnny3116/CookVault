@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { apiFetch } from "@/lib/api";
+import { describeApiError } from "@/lib/errors";
 import { addDays, fmtDate, startOfWeek, weekDays } from "@/lib/dates";
-import type { MealPlanEntry, MealType, RecipeSummary } from "@/types";
+import type { MealPlanDraftDetail, MealPlanEntry, MealType, RecipeSummary } from "@/types";
 
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 
@@ -18,6 +20,9 @@ export default function CalendarPage() {
   const [plannedServings, setPlannedServings] = useState("");
   const [mealType, setMealType] = useState<MealType | "">("dinner");
   const [error, setError] = useState<string | null>(null);
+  const [proposing, setProposing] = useState(false);
+  const [waiting, setWaiting] = useState(0);
+  const router = useRouter();
 
   const days = weekDays(weekStart);
   const thisWeek = startOfWeek(new Date());
@@ -25,16 +30,18 @@ export default function CalendarPage() {
 
   const load = useCallback(async () => {
     const weekEnd = addDays(weekStart, 6);
-    const [entriesData, recipesData] = await Promise.all([
+    const [entriesData, recipesData, proposals] = await Promise.all([
       apiFetch<MealPlanEntry[]>(`/meal-plan?start=${fmtDate(weekStart)}&end=${fmtDate(weekEnd)}`),
       apiFetch<RecipeSummary[]>("/recipes"),
+      apiFetch<MealPlanDraftDetail[]>("/meal-plan/drafts?status_filter=ready"),
     ]);
     setEntries(entriesData);
     setRecipes(recipesData);
+    setWaiting(proposals.length);
   }, [weekStart]);
 
   useEffect(() => {
-    load().catch((err) => setError(err instanceof Error ? err.message : "Failed to load"));
+    load().catch((err) => setError(describeApiError(err)));
   }, [load]);
 
   async function run(work: () => Promise<unknown>) {
@@ -43,7 +50,33 @@ export default function CalendarPage() {
       await work();
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(describeApiError(err));
+    }
+  }
+
+  /** Propose a week and go and look at it.
+   *
+   * Deliberately two steps. Filling the calendar directly would make the
+   * suggestion an action instead of a suggestion, and the whole reason this is
+   * arithmetic over the cook log is that it can be argued with.
+   */
+  async function proposeWeek() {
+    setError(null);
+    setProposing(true);
+    try {
+      const draft = await apiFetch<MealPlanDraftDetail>("/meal-plan/auto-fill", {
+        method: "POST",
+        body: JSON.stringify({
+          start: fmtDate(weekStart),
+          days: 7,
+          meal_type: mealType || "dinner",
+        }),
+      });
+      router.push(`/calendar/proposals#${draft.id}`);
+    } catch (err) {
+      setError(describeApiError(err));
+    } finally {
+      setProposing(false);
     }
   }
 
@@ -59,13 +92,21 @@ export default function CalendarPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Meal Plan</h1>
-        <button
-          disabled
-          title="Auto-fill isn't built yet — Phase 2 feature"
-          className="cursor-not-allowed rounded border border-neutral-300 px-3 py-1 text-sm text-neutral-400"
-        >
-          Auto-fill week
-        </button>
+        <div className="flex items-center gap-2">
+          {waiting > 0 && (
+            <Link href="/calendar/proposals" className="text-sm text-neutral-500 underline">
+              {waiting} proposed {waiting === 1 ? "week" : "weeks"} waiting
+            </Link>
+          )}
+          <button
+            onClick={proposeWeek}
+            disabled={proposing || recipes.length === 0}
+            title="Suggests a week from your cooking history. Nothing is planned until you approve it."
+            className="rounded border border-neutral-300 px-3 py-1 text-sm disabled:opacity-40"
+          >
+            {proposing ? "Proposing…" : "Propose a week"}
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

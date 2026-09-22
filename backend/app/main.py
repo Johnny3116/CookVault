@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import (
+    agent,
     aisles,
     alternates,
     auth,
@@ -32,6 +33,7 @@ if settings.cors_origins:
     )
 
 app.include_router(auth.router)
+app.include_router(agent.router)
 app.include_router(recipes.router)
 app.include_router(drafts.router)
 app.include_router(ingredients.router)

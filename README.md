@@ -11,16 +11,21 @@ generates shopping checklists, and plans meals on a calendar.
 
 **Built and usable:** recipe storage with full CRUD from the UI (create, edit,
 delete, favorite), the four-column recipe detail page, alternates, shopping lists
-grouped by aisle, manual-mode meal planning, nondestructive scaling, the draft
-review queue that everything imported passes through, import from a URL or
-pasted text, cooking history, a pantry, and whole-library backup and restore.
+grouped by aisle, meal planning by hand and by proposal, nondestructive scaling,
+the draft review queue that everything imported passes through, import from a URL
+or pasted text, cooking history, a pantry, whole-library backup and restore, and
+the `/agent` tool surface Agent Zero calls in through.
 
-**Phase 2 (not built yet):** video/web import (yt-dlp + scraping), the LLM-parsed
-half of the recipe finder, and auto-fill meal planning. The relevant backend
-endpoints exist and return `501 Not Implemented` with a clear message rather than
-faking it. They depend on the Agent Zero instance on NexusServer, whose exact
-request/response JSON contract hasn't been verified yet — see
-`backend/app/agent_zero_client.py`.
+**Auto-fill meal planning is built and needed no model at all.** "Diverse" is
+arithmetic over the cook log, so CookVault does it itself and shows its working
+— see [Proposed weeks](#proposed-weeks-auto-fill-and-the-agent).
+
+**Still not built:** video transcripts (yt-dlp), and the outbound half of the
+Agent Zero integration — CookVault *calling* Agent Zero, which the recipe
+finder's web-search half would use. That one is still blocked on a
+request/response contract nobody has verified against the live instance on
+NexusServer; `backend/app/agent_zero_client.py` raises rather than guessing.
+The inbound half needs none of it, because there CookVault is the server.
 
 **Known gaps, in rough priority order:**
 
@@ -31,10 +36,16 @@ request/response JSON contract hasn't been verified yet — see
 - The frontend has no tests of its own; CI typechecks and builds it, but nothing
   exercises the pages. The draft lifecycle has been driven end to end in a real
   browser, but by hand rather than by anything that runs in CI.
-- Import covers pasted text and web pages. Video transcripts are not handled,
-  and no model is involved in structuring — see "Importing" above.
+- Import covers pasted text and web pages. Video transcripts are not handled;
+  that still needs yt-dlp. A model can now structure a recipe and propose it
+  through `/agent/recipe-drafts`, but CookVault does not call one itself.
+- The recipe finder still searches only saved recipes. The "new finds" half
+  needs web search, which is the outbound Agent Zero client.
 - The text parser is a heuristic. It reads the shapes real recipes use, but an
   unusual layout will land wrong in the draft and need fixing by hand.
+- The agent surface has no rate limiting. It is single-user and Tailscale-only,
+  and the key is the only thing in front of it; that is a deliberate scope call,
+  not an oversight.
 - Provenance can only be set when a draft is created, not edited afterwards.
   That is deliberate for now — where something came from doesn't change — but
   it means a typo in a source title is fixed by starting over.
@@ -117,10 +128,10 @@ POST /drafts/{id}/discard                  (status: discarded, frozen)
 ```
 
 The design principle this implements is **AI proposes, CookVault validates,
-John approves** — and it is built and proven by hand first. When an agent is
-eventually allowed to suggest recipes it gets `POST /drafts` and nothing else,
-so it arrives at the same door, and every guarantee below already applies to
-it.
+John approves** — and it was built and proven by hand first. That turned out to
+matter: when the agent surface arrived it got its own door into this same
+queue and nothing else, so every guarantee below already applied to it on the
+first day. See [The agent surface](#the-agent-surface).
 
 - **A draft is allowed to be wrong.** The payload is JSONB, not columns.
   Rejecting bad payloads at the door would mean the proposals most worth
@@ -253,6 +264,101 @@ restores, and compares the *whole* export for equality. Spot-checking a few
 fields is how a backup that quietly drops a column passes its own tests for a
 year.
 
+## The agent surface
+
+**CookVault is the server, not the client.** Agent Zero calls *in*, over a
+separate door at `/agent`. That inversion is the whole design, and it is what
+made this buildable: an agent calling in needs no guess about anyone else's wire
+format, and every write it can attempt is one CookVault wrote and validates.
+
+**AI proposes. CookVault validates. John approves.** In endpoints:
+
+| Tool | Writes? | What it does |
+|---|---|---|
+| `GET /agent/manifest` | no | The tool list and the guarantees, served by the thing that implements them |
+| `POST /agent/parse-recipe-source` | no | CookVault's own deterministic parser, on text or a URL |
+| `POST /agent/search-recipes` | no | The library by tags, time, cost, ingredients and cooking history |
+| `GET /agent/recipes/{id}` | no | One recipe in full, provenance included |
+| `POST /agent/suggest-meal-plan` | no | Ranked candidates per day, with the reason for each score |
+| `POST /agent/recipe-drafts` | draft | Propose a recipe |
+| `PATCH /agent/recipe-drafts/{id}` | draft | Revise one of its own, while unsettled |
+| `GET /agent/recipe-drafts/{id}` | no | Read one of its own back, with the current verdict |
+| `POST /agent/meal-plan-drafts` | draft | Propose a week |
+
+Every write creates or edits a draft. **Nothing here writes a recipe, a meal
+plan entry, a shopping list or a backup**, and promotion and approval are not on
+this surface at all. That list is pinned as a literal in
+`tests/test_agent_surface.py`: adding an endpoint fails the suite until someone
+writes down what it is and why the agent may have it, and the manifest is
+asserted to describe exactly the routes that are mounted.
+
+**A separate door, in both directions.** John's password gate issues a browser
+cookie; the agent presents `X-API-Key`. A cookie does not open `/agent`, so a
+mistake in the web UI cannot reach tools the UI has no business calling — and a
+leaked agent key is not a way to promote a draft or restore a backup. Both
+directions have tests.
+
+**Off unless configured.** With `AGENT_API_KEY` unset the surface answers 503
+rather than coming up open because nobody set a variable. A key under 32
+characters refuses to boot: it is the only credential in front of a surface that
+can write, so a weak one should be a startup complaint rather than a 503 nobody
+can explain.
+
+**Authorship is recorded, not inferred.** `recipe_drafts.created_by` is a fact
+about which door the request came through, not a claim the content makes about
+itself — which is what makes "the agent cannot edit a draft John started"
+enforceable. The agent also cannot *read* one: that is a 404 rather than a 403,
+because the two differ only in whether the answer confirms the row exists.
+
+**Unknown fields are refused, not dropped.** This is a contract with a program
+on another machine, so a misspelled field comes back as a 422 naming it. Ignored
+input is the failure mode where both sides think the call worked and only one of
+them is right. `import_method` is the field most likely to be tried and the one
+this surface will never accept — anything arriving here is recorded as `agent`.
+
+An invalid *recipe* proposal is accepted and reported rather than refused: a
+draft is allowed to be wrong, that is what the queue is for, and rejecting the
+proposals most worth reviewing would leave the agent guessing. A *plan* naming a
+recipe id that does not exist is refused, because that is not a judgement call
+about content — it is a reference that cannot resolve, and accepting it would
+queue something that can never be approved.
+
+## Proposed weeks: auto-fill and the agent
+
+The spec asks auto-fill for "diverse, easy, tasty meals where a reasonable
+grocery budget covers the week". Three of those are arithmetic and one is not:
+
+- **Easy** and **within budget** are the time and cost filters.
+- **Diverse** is the cook log — how long since this was last made is a number.
+- **Tasty** is not something CookVault can know, and it does not pretend to.
+
+So the variety arithmetic lives in `services/meal_planning.py`, deterministic
+and explainable, and `POST /meal-plan/auto-fill` needs **no model at all**. A
+model asked to "avoid repeating the same staples" will produce a plausible
+answer that quietly repeats staples and nothing about the answer will say so;
+days-since-last-cooked is checkable, and every meal comes back with the sentence
+that put it there.
+
+What the agent is actually for is the part a number cannot settle: taste,
+balance across a week, what suits a Tuesday, what you said last time. It gets
+ranked candidates from `suggest_meal_plan` and makes those judgements.
+
+Candidates are **dealt round-robin** across the days rather than repeated.
+Handing every day the same top five would make "candidates for seven days" a
+list of five, and a caller taking the first each day would cook the same thing
+all week.
+
+**A proposal is not a plan.** Either way — CookVault's or the agent's — the
+result is a `meal_plan_draft` and the calendar is untouched until you approve
+it, at `/calendar/proposals`, where any meal can be swapped or dropped first. A
+plan you can only take whole or reject whole is one you reject.
+
+Approving is the only way an entry is ever recorded as `auto`. `POST /meal-plan`
+with `mode: "auto"` is a 400 pointing here: a mode anyone can set stops being an
+answer to "where did this week come from?". References are resolved again at
+approval rather than trusted from when the plan was made — a recipe can be
+deleted in between — and nothing is written if any of them fail.
+
 ## Architecture note: one port, not two
 
 The browser only ever talks to the frontend's origin. `/api/*` is proxied
@@ -279,17 +385,22 @@ backend/
     models.py            SQLAlchemy models
     schemas.py           Pydantic request/response schemas
     auth.py              Optional password gate, HMAC session tokens
-    agent_zero_client.py Phase 2 stub — intentionally unimplemented
+    agent_auth.py        The separate X-API-Key door for /agent
+    schemas_agent.py     The contract Agent Zero is coded against
+    agent_zero_client.py The OUTBOUND direction — still unimplemented, raises
+    routers/agent.py     The whole agent tool surface, in one file
     routers/             One module per resource
     services/            Domain logic: scaling, shopping list, validation,
-                         recipe-text parsing, web import, aisles, backup
-  alembic/versions/      Migrations (0001 initial ... 0008 pantry)
+                         recipe-text parsing, web import, aisles, backup,
+                         recipe search, meal planning
+  alembic/versions/      Migrations (0001 initial ... 0010 meal plan drafts)
   docker-entrypoint.sh   Runs migrations, then uvicorn
 frontend/
   app/
     api/[...path]/       Server-side proxy to the backend
     recipes/             Detail, edit and new-recipe pages
     drafts/              The review queue: import, propose, validate, promote
+    calendar/proposals/  Proposed weeks, waiting to be approved
     pantry/              Staples, and backup export/restore
     login/               Password gate
     ...                  Dashboard, library, finder, shopping list, calendar
@@ -406,7 +517,8 @@ Everything lives in `.env` (see [`.env.example`](./.env.example)):
 | `DATABASE_URL` | Postgres connection string; must match the compose service |
 | `COOKVAULT_PASSWORD` | Optional password gate. Blank disables auth entirely |
 | `CORS_ORIGINS` | Normally empty — only needed to hit the backend port directly from a browser |
-| `AGENT_ZERO_BASE_URL` / `AGENT_ZERO_API_KEY` | Phase 2, not used yet |
+| `AGENT_API_KEY` | The key Agent Zero presents to reach `/agent`. Blank switches that surface off entirely. Minimum 32 characters, enforced at startup |
+| `AGENT_ZERO_BASE_URL` / `AGENT_ZERO_API_KEY` | The *outbound* direction, still not used — see `backend/app/agent_zero_client.py` |
 
 `BACKEND_ORIGIN` is set by `docker-compose.yml` rather than `.env`; it tells the
 frontend server where to proxy `/api/*` and is never seen by the browser.
@@ -419,3 +531,7 @@ shows a login page and stores an **HMAC-signed session token** in an HttpOnly
 cookie; the password itself is never put in the cookie. Tokens expire after 30
 days. `/health` is deliberately left outside the gate, so it stays usable as a
 liveness probe. No multi-tenant auth, by design (see `CookVault_MVP.md` §7).
+
+`AGENT_API_KEY` is a **separate credential for a separate surface**, not a
+second password. It opens `/agent` and nothing else, and the session cookie does
+not open `/agent` — see [The agent surface](#the-agent-surface).

@@ -42,6 +42,7 @@ _TABLES: list[tuple[str, type]] = [
     ("shopping_list_items", models.ShoppingListItem),
     ("meal_plan_entries", models.MealPlanEntry),
     ("recipe_drafts", models.RecipeDraft),
+    ("meal_plan_drafts", models.MealPlanDraft),
     ("recipe_provenance", models.RecipeProvenance),
     ("cook_log", models.CookLog),
     ("pantry_items", models.PantryItem),

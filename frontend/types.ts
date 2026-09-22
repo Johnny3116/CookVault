@@ -186,10 +186,18 @@ export interface DraftValidation {
   issues: DraftIssue[];
 }
 
+/** Which door a draft came through. Recorded rather than inferred from
+ *  provenance -- provenance is a claim about the source, this is a fact about
+ *  the caller. */
+export type DraftAuthor = "human" | "agent";
+
 export interface RecipeDraftSummary {
   id: string;
   title: string | null;
   status: DraftStatus;
+  created_by: DraftAuthor;
+  /** What the proposer wanted to say to the reviewer. Never part of the recipe. */
+  note: string | null;
   promoted_recipe_id: string | null;
   promoted_at: string | null;
   created_at: string;
@@ -200,4 +208,31 @@ export interface RecipeDraftDetail extends RecipeDraftSummary {
   /** Shaped like a recipe, but not guaranteed to be one yet. */
   payload: Record<string, unknown>;
   provenance: Provenance | null;
+}
+
+/** One meal in a proposed week. `reason` is why this recipe on this day --
+ *  a plan you cannot interrogate is one you override out of habit. */
+export interface PlannedMeal {
+  date: string;
+  recipe_id: string;
+  meal_type: MealType;
+  servings: number | null;
+  reason: string | null;
+}
+
+export interface MealPlanDraftSummary {
+  id: string;
+  title: string | null;
+  status: DraftStatus;
+  created_by: DraftAuthor;
+  note: string | null;
+  agent_model: string | null;
+  approved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MealPlanDraftDetail extends MealPlanDraftSummary {
+  meals: PlannedMeal[];
+  agent_version: string | null;
 }

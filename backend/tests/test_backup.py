@@ -26,6 +26,7 @@ def full_library(client, recipe_payload, draft_payload):
     )
     client.post("/pantry", json={"name": "olive oil", "note": "big tin"})
     client.post("/aisles/rules", json={"term": "gochujang", "aisle": "pantry"})
+    client.post("/meal-plan/auto-fill", json={"start": "2026-10-05", "days": 2})
     # A draft plus its provenance, promoted so the provenance points at both.
     draft = client.post("/drafts", json=draft_payload).json()
     client.post(f"/drafts/{draft['id']}/promote")
@@ -75,6 +76,23 @@ def test_every_table_has_something_in_the_fixture(client, full_library):
         name for name, rows in export.items() if name != "format_version" and not rows
     ]
     assert empty == []
+
+
+def test_the_backup_covers_every_table_in_the_model(client):
+    """The test that catches the next new table.
+
+    A backup is only as good as its list of tables, and that list is the one
+    thing in this feature that cannot fail loudly: a table added to models.py
+    and forgotten here produces an export that looks complete, restores
+    without complaint, and has quietly dropped everything in it.
+    """
+    from app.db import Base
+    from app.services.backup import _TABLES
+
+    mapped = {table.name for table in Base.metadata.tables.values()}
+    covered = {name for name, _ in _TABLES}
+
+    assert mapped - covered == set(), f"not in the backup: {sorted(mapped - covered)}"
 
 
 def test_ids_are_preserved(client, full_library):

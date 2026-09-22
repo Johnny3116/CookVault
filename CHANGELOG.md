@@ -11,6 +11,38 @@ dates are commit dates rather than release dates.
 
 ### Added
 
+- **The `/agent` tool surface** — the door Agent Zero comes in through.
+  CookVault is the server, not the client, which is what made this buildable:
+  an agent calling *in* needs no guess about anyone else's wire format, and
+  every write it can attempt is one CookVault wrote and validates. Read tools
+  (`parse_recipe_source`, `search_recipes`, `get_recipe`, `suggest_meal_plan`)
+  and propose tools (`create_recipe_draft`, `update_recipe_draft`,
+  `create_meal_plan_draft`). Every write creates a draft; nothing on this
+  surface writes a recipe, a meal plan entry, a shopping list or a backup, and
+  promotion and approval are not on it at all. The route list is pinned as a
+  literal in the tests, and `GET /agent/manifest` is asserted to describe
+  exactly what is mounted.
+- **A separate door for it.** `AGENT_API_KEY` and an `X-API-Key` header,
+  unrelated to the password gate in both directions: a cookie does not open
+  `/agent`, and the agent key does not open John's endpoints. Unset means the
+  surface answers 503 rather than coming up open; a key under 32 characters
+  refuses to boot.
+- **Draft authorship and notes** (migration `0009`). `created_by` is a fact
+  about which door a draft came through rather than something inferred from
+  provenance, which is what makes "the agent cannot edit a draft John started"
+  enforceable. `note` is what the proposer wanted to say to the reviewer, and
+  never becomes part of the recipe.
+- **Auto-fill meal planning** (migration `0010`), which needed no model at all.
+  "Diverse" is arithmetic over the cook log, so `POST /meal-plan/auto-fill`
+  proposes a week itself and shows its working — every meal carries the
+  sentence that put it there. The result is a `meal_plan_draft`: the calendar
+  is untouched until you approve it at `/calendar/proposals`, where any meal
+  can be swapped or dropped first.
+- **`services/recipe_search.py`**, one query shared by the library page and the
+  agent's search tool, so the two cannot drift apart.
+- A test that the backup covers every mapped table — the one part of that
+  feature that could not fail loudly.
+
 - **Shopping aisles** (migration `0006`), a different axis from ingredient
   category: category is what a thing is when you cook with it, aisle is where
   you walk to pick it up. The mapping is rows in `aisle_rules`, seeded with 161
@@ -143,6 +175,14 @@ dates are commit dates rather than release dates.
 
 ### Changed
 
+- `POST /meal-plan/auto-fill` proposes a week instead of returning `501`, and
+  `POST /meal-plan` with `mode: "auto"` is now a `400` pointing at it rather
+  than a `501`. Approving a proposed plan is the only thing that sets `auto`:
+  a mode anyone can set stops being an answer to "where did this week come
+  from?".
+- Unknown fields on `/agent` requests are refused with a 422 naming them rather
+  than silently dropped. A contract with a program on another machine should
+  not have a failure mode where both sides think the call worked.
 - `GET /recipes` takes `tag` where it previously took `cuisine`; the parameter
   filtered on tags either way, and the old name described something the data
   model doesn't have.
