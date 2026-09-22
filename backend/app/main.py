@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import (
+    aisles,
     alternates,
     auth,
     drafts,
@@ -34,6 +35,7 @@ app.include_router(ingredients.router)
 app.include_router(steps.router)
 app.include_router(alternates.router)
 app.include_router(shopping_list.router)
+app.include_router(aisles.router)
 app.include_router(meal_plan.router)
 app.include_router(import_.router)
 app.include_router(finder.router)

@@ -63,6 +63,38 @@ export interface RecipeDetail extends RecipeSummary {
 
 export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
 
+export type ShoppingAisle =
+  | "produce"
+  | "meat_seafood"
+  | "dairy_eggs"
+  | "bakery"
+  | "frozen"
+  | "pantry"
+  | "drinks"
+  | "household"
+  | "other";
+
+/** Where a thing lives in the shop, in the order one is walked. A different
+ *  axis from IngredientCategory, which is what a thing *is* when you cook. */
+export const AISLES: { key: ShoppingAisle; label: string }[] = [
+  { key: "produce", label: "Produce" },
+  { key: "meat_seafood", label: "Meat & Seafood" },
+  { key: "dairy_eggs", label: "Dairy & Eggs" },
+  { key: "bakery", label: "Bakery" },
+  { key: "frozen", label: "Frozen" },
+  { key: "pantry", label: "Pantry" },
+  { key: "drinks", label: "Drinks" },
+  { key: "household", label: "Household" },
+  { key: "other", label: "Other" },
+];
+
+export interface AisleRule {
+  id: string;
+  term: string;
+  aisle: ShoppingAisle;
+  created_at: string;
+}
+
 export interface ShoppingListItem {
   id: string;
   recipe_id: string | null;
@@ -75,6 +107,11 @@ export interface ShoppingListItem {
   /** True for rows built by "generate from recipes"; those are replaced on
    *  the next generate, while hand-added items survive it. */
   is_generated: boolean;
+  /** Resolved per response from the aisle rules, so fixing a rule fixes every
+   *  line that relied on it. */
+  aisle: ShoppingAisle;
+  /** Set only when overridden by hand; null means "whatever the rules say". */
+  aisle_override: ShoppingAisle | null;
 }
 
 export interface RecipeFacets {

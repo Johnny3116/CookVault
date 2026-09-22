@@ -77,6 +77,27 @@ class ImportMethod(str, enum.Enum):
     agent = "agent"
 
 
+class ShoppingAisle(str, enum.Enum):
+    """Where a thing lives in the shop.
+
+    Deliberately not the same axis as IngredientCategory. "Spices & sauces" is
+    about what a thing *is* when you cook with it; "bakery" is about where you
+    walk to pick it up. Chicken stock is a pantry ingredient and a pantry-aisle
+    item; fresh parsley is a spice_sauce ingredient sitting in produce. Folding
+    the two together loses one of them.
+    """
+
+    produce = "produce"
+    meat_seafood = "meat_seafood"
+    dairy_eggs = "dairy_eggs"
+    bakery = "bakery"
+    frozen = "frozen"
+    pantry = "pantry"
+    drinks = "drinks"
+    household = "household"
+    other = "other"
+
+
 class MealType(str, enum.Enum):
     breakfast = "breakfast"
     lunch = "lunch"
@@ -196,6 +217,12 @@ class ShoppingListItem(Base):
     # recipe_id can't carry this: merging an ingredient that came from three
     # recipes leaves no single recipe to point at.
     is_generated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Set only when overriding what the rules resolve to. Null means "whatever
+    # the rules say", so fixing a rule fixes every item that relied on it --
+    # the same reason unit conversion is computed rather than stored.
+    aisle_override: Mapped[ShoppingAisle | None] = mapped_column(
+        Enum(ShoppingAisle, name="shopping_aisle"), nullable=True
+    )
 
     recipe: Mapped[Recipe | None] = relationship(back_populates="shopping_list_items")
 
@@ -310,3 +337,26 @@ class RecipeProvenance(Base):
 
     draft: Mapped[RecipeDraft | None] = relationship(back_populates="provenance", foreign_keys=[draft_id])
     recipe: Mapped[Recipe | None] = relationship(back_populates="provenance", foreign_keys=[recipe_id])
+
+
+class AisleRule(Base):
+    """One "this word means that aisle" mapping.
+
+    Rows rather than a dict in the source, because the right answer is personal
+    and changes with the shop: it is data, so it is editable at runtime without
+    a deploy. The seeded set in migration 0006 is a starting point, not a
+    fixture the code depends on.
+    """
+
+    __tablename__ = "aisle_rules"
+    __table_args__ = (Index("ix_aisle_rules_term", "term", unique=True),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Matched case-insensitively as a whole word against an item's name.
+    term: Mapped[str] = mapped_column(String(100), nullable=False)
+    aisle: Mapped[ShoppingAisle] = mapped_column(
+        Enum(ShoppingAisle, name="shopping_aisle"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

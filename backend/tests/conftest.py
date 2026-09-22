@@ -39,8 +39,26 @@ def _schema() -> None:
     command.upgrade(cfg, "head")
 
 
+@pytest.fixture(scope="session")
+def _seeded_aisle_rules(_schema) -> list[dict]:
+    """The aisle rules exactly as migration 0006 shipped them.
+
+    Captured once, after migrating, so that each test can be handed the same
+    starting point. The migration stays the single source of that seed -- the
+    tests read it rather than restating it, which means a change to the seed
+    cannot silently disagree with what the tests assume.
+    """
+    from sqlalchemy import text as sql_text
+
+    from app.db import engine
+
+    with engine.connect() as conn:
+        rows = conn.execute(sql_text("SELECT id, term, aisle::text FROM aisle_rules")).all()
+    return [{"id": row[0], "term": row[1], "aisle": row[2]} for row in rows]
+
+
 @pytest.fixture(autouse=True)
-def _clean_tables() -> None:
+def _clean_tables(_seeded_aisle_rules) -> None:
     """Start every test from an empty database.
 
     TRUNCATE ... CASCADE reaches the child tables through their foreign keys;
@@ -57,6 +75,14 @@ def _clean_tables() -> None:
                 "RESTART IDENTITY CASCADE"
             )
         )
+        # Rules are editable data, so a test that edits one would otherwise
+        # leak into the next. Reset to what the migration seeded.
+        conn.execute(text("TRUNCATE aisle_rules"))
+        if _seeded_aisle_rules:
+            conn.execute(
+                text("INSERT INTO aisle_rules (id, term, aisle) VALUES (:id, :term, CAST(:aisle AS shopping_aisle))"),
+                _seeded_aisle_rules,
+            )
 
 
 @pytest.fixture

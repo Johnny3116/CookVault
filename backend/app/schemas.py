@@ -9,6 +9,7 @@ from pydantic import AnyHttpUrl, BaseModel, ConfigDict, model_validator
 
 from app.models import (
     AlternateType,
+    ShoppingAisle,
     DraftStatus,
     ImportMethod,
     IngredientCategory,
@@ -220,6 +221,9 @@ class ShoppingListItemCreate(ShoppingListItemBase):
 class ShoppingListItemUpdate(PatchModel):
     non_nullable: ClassVar[frozenset[str]] = frozenset({"name", "category", "is_checked"})
 
+    # Nullable on purpose: clearing it hands the line back to the rules.
+    aisle_override: ShoppingAisle | None = None
+
     name: str | None = None
     quantity: Decimal | None = None
     unit: str | None = None
@@ -232,6 +236,10 @@ class ShoppingListItemRead(ShoppingListItemBase):
     id: uuid.UUID
     recipe_id: uuid.UUID | None = None
     is_generated: bool = False
+    # What the rules (or an override) put this line in. Computed per response
+    # rather than stored, so correcting a rule corrects every existing line.
+    aisle: ShoppingAisle = ShoppingAisle.other
+    aisle_override: ShoppingAisle | None = None
 
 
 class ShoppingListGenerateRequest(BaseModel):
@@ -366,3 +374,36 @@ class ImportPasteRequest(BaseModel):
     source_type: SourceType = SourceType.manual
     source_title: str | None = None
     source_url: str | None = None
+
+
+class AisleRuleBase(BaseModel):
+    """One "this word means that aisle" mapping."""
+
+    term: str
+    aisle: ShoppingAisle
+
+
+class AisleRuleCreate(AisleRuleBase):
+    pass
+
+
+class AisleRuleUpdate(PatchModel):
+    non_nullable: ClassVar[frozenset[str]] = frozenset({"term", "aisle"})
+
+    term: str | None = None
+    aisle: ShoppingAisle | None = None
+
+
+class AisleRuleRead(AisleRuleBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    created_at: datetime
+
+
+class AisleResolution(BaseModel):
+    """What the rules make of a name, and which rule decided it -- so a
+    surprising answer can be traced to the row that caused it."""
+
+    name: str
+    aisle: ShoppingAisle
+    matched_term: str | None = None
