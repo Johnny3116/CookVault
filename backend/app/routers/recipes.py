@@ -1,12 +1,13 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, nullsfirst, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.auth import require_auth
 from app.db import get_db
+from app.services import recipe_search
 from app.services.scaling import effective_scale, scale_quantity
 from app.units import tidy
 
@@ -37,31 +38,19 @@ def list_recipes(
     max_total_time is prep + cook in minutes. A recipe that records neither
     counts as 0 rather than being excluded -- an unknown time is not a long
     one, and dropping untimed recipes would hide most of a young library.
+
+    The query itself lives in services/recipe_search so that this page and the
+    agent's search tool cannot drift apart.
     """
-    stmt = select(models.Recipe)
-    if favorite is not None:
-        stmt = stmt.where(models.Recipe.is_favorite == favorite)
-    if tag is not None:
-        stmt = stmt.where(models.Recipe.tags.contains([tag]))
-    if cook_method is not None:
-        stmt = stmt.where(models.Recipe.cook_methods.contains([cook_method]))
-    if max_total_time is not None:
-        total = func.coalesce(models.Recipe.prep_time, 0) + func.coalesce(models.Recipe.cook_time, 0)
-        stmt = stmt.where(total <= max_total_time)
-    if search is not None and search.strip():
-        stmt = stmt.where(models.Recipe.title.ilike(f"%{search.strip()}%"))
-    if sort == "last_cooked":
-        # "What haven't I made in ages." Never-cooked sorts first, because
-        # never is the extreme case of a long time ago, not the absence of an
-        # answer.
-        stmt = stmt.order_by(
-            nullsfirst(models.Recipe.last_cooked_on.asc()), models.Recipe.title
-        )
-    elif sort == "most_cooked":
-        stmt = stmt.order_by(models.Recipe.times_cooked.desc(), models.Recipe.title)
-    else:
-        stmt = stmt.order_by(models.Recipe.updated_at.desc())
-    return db.execute(stmt).scalars().all()
+    filters = recipe_search.RecipeFilters(
+        favorite=favorite,
+        tags=[tag] if tag is not None else [],
+        cook_methods=[cook_method] if cook_method is not None else [],
+        max_total_time=max_total_time,
+        text=search,
+        sort=sort,
+    )
+    return db.execute(recipe_search.build_query(filters)).scalars().all()
 
 
 @router.get("/facets", response_model=schemas.RecipeFacets)
