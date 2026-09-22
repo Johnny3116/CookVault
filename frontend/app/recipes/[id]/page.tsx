@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import { IngredientColumn } from "@/components/IngredientColumn";
 import { StepList } from "@/components/StepList";
@@ -17,13 +17,26 @@ const COLUMNS: { category: IngredientCategory; label: string }[] = [
   { category: "misc", label: "Misc" },
 ];
 
-export default function RecipeDetailPage() {
+function RecipeDetailContent() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [recipe, setRecipe] = useState<RecipeDetailType | null>(null);
-  // Null means "as written". Scaling is a read-time transform: the server
-  // returns scaled quantities and the stored recipe never changes.
-  const [servings, setServings] = useState<number | null>(null);
+
+  // The target lives in the URL, not component state, so that a planned meal
+  // can link straight to the servings it was planned for -- the calendar links
+  // here with ?servings=N -- and so a scaled view is shareable and survives
+  // the back button.
+  const requested = Number(searchParams.get("servings"));
+  const servings = Number.isFinite(requested) && requested > 0 ? requested : null;
+
+  function setServings(next: number | null) {
+    const query = new URLSearchParams(searchParams.toString());
+    if (next === null) query.delete("servings");
+    else query.set("servings", String(next));
+    const suffix = query.toString() ? `?${query}` : "";
+    router.replace(`/recipes/${params.id}${suffix}`, { scroll: false });
+  }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -213,5 +226,14 @@ export default function RecipeDetailPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function RecipeDetailPage() {
+  // useSearchParams needs a Suspense boundary in the app router.
+  return (
+    <Suspense fallback={<p className="text-neutral-500">Loading…</p>}>
+      <RecipeDetailContent />
+    </Suspense>
   );
 }
