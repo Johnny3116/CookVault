@@ -21,3 +21,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Eval runs are local measurements, not source. The .gitkeep stays so the
+# runner has somewhere to write without mkdir racing on a fresh clone.
+backend/evals/results/*
+!backend/evals/results/.gitkeep
