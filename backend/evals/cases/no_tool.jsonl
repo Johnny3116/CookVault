@@ -1,0 +1,15 @@
+{"id": "nt-pasta-sticking", "prompt": "My pasta always sticks together. What am I doing wrong?", "expect_mentions": ["water"], "paraphrases": ["Why does my pasta clump?", "How do I stop pasta sticking in the pot?"]}
+{"id": "nt-buttermilk", "prompt": "What can I use instead of buttermilk?", "expect_mentions": ["milk"], "paraphrases": ["I've got no buttermilk. What's a substitute?", "Buttermilk replacement?"]}
+{"id": "nt-rest-steak", "prompt": "Why do you rest a steak after cooking it?", "paraphrases": ["What's the point of resting meat?", "Does resting steak actually matter?"]}
+{"id": "nt-salt-pasta-water", "prompt": "How salty should pasta water actually be?", "paraphrases": ["How much salt goes in pasta water?", "Is 'salty as the sea' real advice for pasta water?"]}
+{"id": "nt-baking-soda-powder", "prompt": "What's the difference between baking soda and baking powder?", "paraphrases": ["Baking soda vs baking powder?", "Can I swap baking powder for baking soda?"]}
+{"id": "nt-knife-sharp", "prompt": "How often should I sharpen a kitchen knife?", "paraphrases": ["When does a chef's knife need sharpening?", "How do I know my knife's gone blunt?"]}
+{"id": "nt-emulsify", "prompt": "My vinaigrette keeps splitting. How do I stop that?", "paraphrases": ["Why won't my salad dressing stay mixed?", "How do you emulsify a vinaigrette properly?"]}
+{"id": "nt-freeze-herbs", "prompt": "Can you freeze fresh herbs, and does it ruin them?", "paraphrases": ["Is freezing basil a bad idea?", "What happens to herbs in the freezer?"]}
+{"id": "nt-oven-temp", "prompt": "Is fan oven temperature different from conventional?", "paraphrases": ["Do I need to change the temperature for a fan oven?", "Convection vs regular oven temp?"]}
+{"id": "nt-brown-meat", "prompt": "Why does my mince go grey instead of browning?", "paraphrases": ["My beef steams rather than browns. Why?", "How do I get a proper sear on mince?"]}
+{"id": "nt-rice-ratio", "prompt": "What's the water to rice ratio for basmati?", "paraphrases": ["How much water per cup of basmati?", "Basmati rice water ratio?"]}
+{"id": "nt-garlic-bitter", "prompt": "My garlic keeps turning bitter. What's happening?", "paraphrases": ["Why does garlic go bitter when I fry it?", "How do I stop burning garlic?"]}
+{"id": "nt-stock-vs-broth", "prompt": "Is there a real difference between stock and broth?", "paraphrases": ["Stock or broth, does it matter which I use?", "What separates stock from broth?"]}
+{"id": "nt-reduce-sauce", "prompt": "How do I thicken a sauce without flour?", "paraphrases": ["Thickening a sauce with no roux?", "What's the best way to reduce a sauce down?"]}
+{"id": "nt-egg-fresh", "prompt": "How can I tell if an egg is still good?", "paraphrases": ["Is the float test for eggs reliable?", "How do I check an egg hasn't gone off?"]}

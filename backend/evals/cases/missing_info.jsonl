@@ -1,0 +1,15 @@
+{"id": "mi-chicken-tacos", "prompt": "Add chicken tacos to my cookbook.", "paraphrases": ["Put chicken tacos in my recipes.", "I want chicken tacos saved."]}
+{"id": "mi-that-thing", "prompt": "Save that thing we talked about.", "paraphrases": ["Add the one from earlier.", "Put that recipe in."]}
+{"id": "mi-something-nice", "prompt": "Add something nice for Sunday.", "paraphrases": ["Stick something good in for Sunday dinner.", "Save a nice Sunday recipe."]}
+{"id": "mi-mums-lasagne", "prompt": "Add my mum's lasagne recipe.", "paraphrases": ["Save mum's lasagne.", "Put my mother's lasagne in the cookbook."]}
+{"id": "mi-the-curry", "prompt": "Add the curry.", "paraphrases": ["Save the curry recipe.", "Put the curry in."]}
+{"id": "mi-from-the-video", "prompt": "Add the recipe from that video I watched.", "paraphrases": ["Save the one from the video.", "Put the video recipe in my cookbook."]}
+{"id": "mi-scale-nothing", "prompt": "Double it.", "paraphrases": ["Make it twice as big.", "Scale it up."]}
+{"id": "mi-plan-vague", "prompt": "Plan my week.", "paraphrases": ["Sort out my meals.", "Do my meal plan.", "Fill in the calendar."], "allow_tools": ["get_meal_plan"]}
+{"id": "mi-tweak", "prompt": "Change the amount of garlic.", "paraphrases": ["Fix the garlic quantity.", "More garlic in it."]}
+{"id": "mi-healthier", "prompt": "Make it healthier.", "paraphrases": ["Can you make that a bit lighter?", "Healthier version please."]}
+{"id": "mi-dinner-party", "prompt": "I'm having people over. Add a starter.", "paraphrases": ["Save a starter for the dinner party.", "Add a starter recipe for guests."]}
+{"id": "mi-swap", "prompt": "Swap the meat out.", "paraphrases": ["Use something else instead of the meat.", "Replace the meat in it."]}
+{"id": "mi-that-one", "prompt": "You know the one. Add it.", "paraphrases": ["The usual one, save it.", "Add the one I always make."]}
+{"id": "mi-nan-cake", "prompt": "Add nan's Christmas cake, the proper one.", "paraphrases": ["Save grandma's real Christmas cake.", "Put nan's cake recipe in."]}
+{"id": "mi-leftovers", "prompt": "What should I do with the leftovers?", "paraphrases": ["I've got leftovers. Ideas?", "What do I make with what's left?"], "allow_tools": ["search_recipes"]}
