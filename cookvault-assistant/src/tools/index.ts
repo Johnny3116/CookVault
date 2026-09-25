@@ -269,13 +269,100 @@ const draftSchema = z.object({
 
 type AgentDraft = { id: string; status: string; title: string | null; valid: boolean; issues: { severity: string; field: string; message: string }[] };
 
+/** Tidy the shapes a small model reaches for before the schema sees them.
+ *
+ * Renaming `name` to `title`, reading a step written as `{text: …}`, turning
+ * `"2"` into 2 and dropping a `servings: 0` that means "not given" are
+ * normalisation: no content is added. Anything that would need inventing --
+ * a missing ingredient list, a quantity that was never a number -- is left
+ * for the schema to refuse, so the model asks the person instead.
+ */
+export function normaliseDraftArguments(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  let input = raw as Record<string, unknown>;
+  // `{recipe: {...}}` or `{draft: {...}}`: the recipe one level down, with
+  // the note (if any) beside it. Lift it.
+  for (const wrapper of ["recipe", "draft", "payload"]) {
+    const inner = input[wrapper];
+    if (inner && typeof inner === "object" && !Array.isArray(inner) && input["ingredients"] === undefined) {
+      const { [wrapper]: _dropped, ...rest } = input;
+      input = { ...rest, ...(inner as Record<string, unknown>) };
+      break;
+    }
+  }
+  const out: Record<string, unknown> = { ...input };
+
+  const first = (...keys: string[]) => keys.map((k) => input[k]).find((v) => v !== undefined && v !== null && v !== "");
+  const title = first("title", "name", "recipe_name", "recipe_title");
+  if (typeof title === "string") out["title"] = title;
+  for (const key of ["name", "recipe_name", "recipe_title"]) delete out[key];
+
+  // There is no description on a recipe. A model that sends one is usually
+  // echoing the person's words, which is what source_text is for.
+  if (typeof input["description"] === "string" && input["source_text"] === undefined) out["source_text"] = input["description"];
+  delete out["description"];
+
+  const steps = first("steps", "instructions", "method", "directions");
+  if (Array.isArray(steps)) {
+    out["steps"] = steps
+      .map((step) => {
+        if (typeof step === "string") return step;
+        if (step && typeof step === "object") {
+          const s = step as Record<string, unknown>;
+          const text = s["instruction_text"] ?? s["text"] ?? s["instruction"] ?? s["step"] ?? s["description"];
+          return typeof text === "string" ? text : "";
+        }
+        return "";
+      })
+      .map((text) => text.trim())
+      .filter(Boolean);
+  } else if (typeof steps === "string") {
+    out["steps"] = steps
+      .split(/\n+/)
+      .map((line) => line.replace(/^\s*(\d+[.)]|[-*•])\s*/, "").trim())
+      .filter(Boolean);
+  }
+  for (const key of ["instructions", "method", "directions"]) delete out[key];
+
+  if (Array.isArray(input["ingredients"])) {
+    out["ingredients"] = input["ingredients"].map((item) => {
+      if (typeof item === "string") return { name: item.trim() };
+      if (!item || typeof item !== "object") return item;
+      const i = { ...(item as Record<string, unknown>) };
+      if (i["name"] === undefined && typeof i["ingredient"] === "string") i["name"] = i["ingredient"];
+      delete i["ingredient"];
+      // "2" becomes 2. "a pinch" stays a string and the schema refuses it:
+      // silently dropping it would lose what the person said.
+      if (typeof i["quantity"] === "string" && i["quantity"].trim() !== "" && Number.isFinite(Number(i["quantity"]))) {
+        i["quantity"] = Number(i["quantity"]);
+      }
+      if (i["quantity"] === null) delete i["quantity"];
+      if (i["unit"] === null || i["unit"] === "") delete i["unit"];
+      if (i["category"] === null || i["category"] === "") delete i["category"];
+      return i;
+    });
+  }
+
+  for (const key of ["servings", "prep_time", "cook_time"]) {
+    const value = out[key];
+    if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) out[key] = Number(value);
+    if (out[key] === null || out[key] === 0 || out[key] === "") delete out[key];
+  }
+  for (const key of ["tags", "cook_methods", "source_text", "note"]) {
+    if (out[key] === null || out[key] === "") delete out[key];
+  }
+  return out;
+}
+
 export const createRecipeDraft: Tool<z.infer<typeof draftSchema>> = {
   name: "create_recipe_draft",
   kind: "WRITE_DRAFT",
   description:
     "Propose a recipe. It lands in the person's review queue as a draft and reaches the cookbook only if they promote it. " +
+    "Required: `title` (a short name, e.g. \"Mom's Chili\"), `ingredients` (a list of objects with name, and quantity/unit when given) " +
+    "and `steps` (a list of strings, in order). There is no description field: put the person's own words in `source_text`. " +
     "Use only details the person actually gave; ask instead of inventing missing quantities, times or steps.",
-  schema: draftSchema,
+  schema: z.preprocess(normaliseDraftArguments, draftSchema) as unknown as z.ZodType<z.infer<typeof draftSchema>>,
   label: (args) => `Drafting “${args.title}”…`,
   async execute(args, ctx) {
     const payload = {

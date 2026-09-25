@@ -80,3 +80,58 @@ describe("argument validation", () => {
     expect(bad.success).toBe(false);
   });
 });
+
+describe("normalising what a small model actually sends", () => {
+  const tool = registry.get("create_recipe_draft")!;
+
+  test("aliases are renamed, empties dropped, numeric strings read as numbers", () => {
+    const parsed = tool.schema.safeParse({
+      name: "Mom's Chili",
+      servings: 0,
+      prep_time: null,
+      cook_time: "60",
+      ingredients: [
+        { ingredient: "ground beef", quantity: "2", unit: "lb" },
+        "kidney beans",
+        { name: "garlic", quantity: null, unit: "", category: "" },
+      ],
+      instructions: [{ text: "Brown the beef." }, "Simmer an hour."],
+      tags: null,
+    });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toEqual({
+      title: "Mom's Chili",
+      cook_time: 60,
+      ingredients: [{ name: "ground beef", quantity: 2, unit: "lb" }, { name: "kidney beans" }, { name: "garlic" }],
+      steps: ["Brown the beef.", "Simmer an hour."],
+    });
+  });
+
+  test("a stray description becomes provenance rather than being lost", () => {
+    const parsed = tool.schema.safeParse({ title: "t", description: "what mom said", ingredients: [{ name: "x" }], steps: ["s"] });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toEqual({ title: "t", source_text: "what mom said", ingredients: [{ name: "x" }], steps: ["s"] });
+  });
+
+  test("a recipe nested under a wrapper key is lifted", () => {
+    const parsed = tool.schema.safeParse({
+      recipe: { title: "Chili", ingredients: [{ name: "beef" }], steps: ["Brown it."] },
+      note: "unsure about the beans",
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toEqual({ title: "Chili", ingredients: [{ name: "beef" }], steps: ["Brown it."], note: "unsure about the beans" });
+  });
+
+  test("steps given as one numbered block are split into lines", () => {
+    const parsed = tool.schema.safeParse({ title: "t", ingredients: [{ name: "x" }], steps: "1. Brown the beef.\n2. Add the rest.\n" });
+    expect(parsed.success).toBe(true);
+    expect((parsed.data as { steps: string[] }).steps).toEqual(["Brown the beef.", "Add the rest."]);
+  });
+
+  test("normalising never invents: no title or no steps is still refused", () => {
+    expect(tool.schema.safeParse({ ingredients: [{ name: "x" }], steps: ["s"] }).success).toBe(false);
+    expect(tool.schema.safeParse({ title: "t", ingredients: [{ name: "x" }], steps: [] }).success).toBe(false);
+    expect(tool.schema.safeParse({ title: "t", ingredients: [], steps: ["s"] }).success).toBe(false);
+  });
+});

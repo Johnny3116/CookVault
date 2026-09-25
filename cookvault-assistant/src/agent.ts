@@ -154,7 +154,8 @@ export class Agent {
     const parsed = tool.schema.safeParse(call.arguments);
     if (!parsed.success) {
       const problems = parsed.error.issues.map((i) => `${i.path.join(".") || "arguments"}: ${i.message}`).join("; ");
-      log("warn", "tool", "invalid arguments", { tool: call.name, problems });
+      // The raw shape is what tells you which alias the model reached for.
+      log("warn", "tool", "invalid arguments", { tool: call.name, problems, raw: JSON.stringify(call.arguments).slice(0, 600) });
       emit({ event: "tool", data: chip({ status: "error", summary: "invalid arguments" }) });
       return { error: `Invalid arguments for ${call.name}: ${problems}. Fix them and try once more, or ask the person.` };
     }
