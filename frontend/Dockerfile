@@ -1,20 +1,21 @@
-FROM node:20-slim AS builder
+FROM oven/bun:1 AS builder
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json bun.lock bunfig.toml ./
+# The 24h release-age guard in bunfig.toml only affects resolution; with a
+# lockfile every version is already pinned, so --frozen-lockfile is the check
+# that matters here: the lock and package.json must agree.
+RUN bun install --frozen-lockfile
 
 COPY . .
-RUN npm run build
+RUN bun run build
 
-FROM node:20-slim
+FROM oven/bun:1-slim
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3420
 
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/.output ./.output
 
 EXPOSE 3420
-CMD ["node", "server.js"]
+CMD ["bun", "run", ".output/server/index.mjs"]

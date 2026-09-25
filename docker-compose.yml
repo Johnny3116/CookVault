@@ -40,16 +40,43 @@ services:
     networks:
       - cookvault
 
+  assistant:
+    # Sage. Talks to Ollama on the host and to the backend's /agent surface;
+    # reached only through the frontend's proxy, which checks the session
+    # cookie first. See cookvault-assistant/README.md.
+    build: ./cookvault-assistant
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      COOKVAULT_ORIGIN: http://backend:8000
+      AUDIT_LOG_PATH: /app/data/audit.jsonl
+    extra_hosts:
+      # Docker Desktop resolves host.docker.internal itself; this makes the
+      # same AI_BASE_URL work on a plain Linux engine too.
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - cookvault_assistant_data:/app/data
+    depends_on:
+      - backend
+    ports:
+      # Loopback-only and optional, for poking /health directly.
+      - "127.0.0.1:8520:8500"
+    networks:
+      - cookvault
+
   frontend:
     build: ./frontend
     restart: unless-stopped
     environment:
-      # Server-side only -- the browser never sees this and never talks to the
-      # backend directly, so there's nothing to bake in at build time and no
-      # rebuild needed when the deployment address changes.
+      # Server-side only -- the browser never sees these and never talks to
+      # the backend or the assistant directly, so nothing is baked in at build
+      # time and no rebuild is needed when an address changes.
       BACKEND_ORIGIN: http://backend:8000
+      ASSISTANT_ORIGIN: http://assistant:8500
     depends_on:
       - backend
+      - assistant
     ports:
       # The only port that needs `tailscale serve`.
       - "127.0.0.1:3420:3420"
@@ -61,3 +88,4 @@ networks:
 
 volumes:
   cookvault_pgdata:
+  cookvault_assistant_data:

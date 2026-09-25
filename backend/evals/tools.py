@@ -1,11 +1,11 @@
 """The tool schemas Qwen is shown, generated rather than transcribed.
 
-Two of the three already exist as Pydantic models in `app.schemas_agent`,
-because Phase 2 built that surface. Their JSON Schema comes straight out of
+The request models already exist in `app.schemas_agent`, because Phase 2
+built that surface. Their JSON Schema comes straight out of
 `model_json_schema()`, so a field renamed in the contract is renamed here on
 the next run and cannot silently drift into a tool description that lies.
 
-`get_meal_plan` is the exception and is marked as such below.
+`get_recipe` is the one exception and is marked as such below.
 
 The generated schema is then **flattened**. Pydantic writes an optional field
 as `anyOf: [{"type": "string"}, {"type": "null"}]`, which is correct and which
@@ -18,7 +18,6 @@ tokens in a context window that has better uses.
 from __future__ import annotations
 
 import copy
-import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -27,26 +26,11 @@ from app import schemas_agent as sa
 from app.services import recipe_search
 
 
-class GetMealPlanRequest(BaseModel):
-    """**Provisional.** The one schema here not generated from the contract.
-
-    `GET /meal-plan` exists, but on John's surface -- there is no
-    `get_meal_plan` on `/agent`, so the agent can propose a week without being
-    able to see what is already planned. That gap is Phase 1 work: add the
-    route, move this model into `app/schemas_agent.py`, and delete this class
-    so the schema is generated like the other two.
-
-    Until then `tests/test_evals.py` asserts these fields still match the
-    endpoint's query parameters, so the provisional copy cannot quietly fall
-    out of step with the thing it mirrors.
-    """
-
-    start: datetime.date | None = Field(
-        default=None, description="First day to include. Omit for no lower bound."
-    )
-    end: datetime.date | None = Field(
-        default=None, description="Last day to include. Omit for no upper bound."
-    )
+# `get_meal_plan` used to be a hand-written copy here, because the route did
+# not exist on the agent surface. It does now (`GET /agent/meal-plan`), and
+# its request model lives in the contract like the others. Re-exported so the
+# harness's tests keep one name for it.
+GetMealPlanRequest = sa.GetMealPlanRequest
 
 
 class GetRecipeRequest(BaseModel):

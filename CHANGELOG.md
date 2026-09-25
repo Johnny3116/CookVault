@@ -11,6 +11,43 @@ dates are commit dates rather than release dates.
 
 ### Added
 
+- **Sage, the assistant** (`cookvault-assistant/`). A local Qwen (qwen3:8b via
+  Ollama on NexusBody) with seven tools onto the `/agent` surface, run as its
+  own Bun service and reached only through the frontend proxy, which checks
+  the session cookie first. It reads the library, the calendar and the ranked
+  meal-plan candidates, answers cooking questions from the model, and proposes
+  recipe drafts and weeks into the same review queue everything else uses. It
+  cannot promote, approve, delete or touch the shopping list, because the
+  surface it talks to has no such routes. The loop is bounded, refuses unknown
+  tools and repeated calls, hands every failure back to the model in one
+  controlled shape, and appends every tool call to an audit log. Built to
+  `cookvault-assistant/Qwen-Integration.md`; tests run offline against a faked
+  model and a faked CookVault.
+- **`GET /agent/meal-plan`**: the calendar with recipe titles, so the agent
+  can see what is already planned before proposing — the gap the Phase 0 eval
+  harness had flagged. Its request model now lives in the contract and the
+  harness's hand-written copy is gone.
+- **`GET /auth/session`**: 200 or 401 for the cookie it is given. The frontend
+  proxy asks it before forwarding a chat to Sage, which is how Sage sits
+  behind the password gate without knowing the signing key.
+- `.gitattributes` pinning `*.sh` to LF, so a Windows checkout no longer
+  produces an entrypoint Docker cannot exec.
+
+### Changed
+
+- **The front-end is rebuilt on the Lovable design**: TanStack Start (React
+  19, Vite, Tailwind 4) on Bun, replacing the Next.js app. Same pages, same
+  API, new look — glass panels, DM Sans and Fraunces, a dashboard-first home
+  with the week's plan and the shopping list up top, and Sage in the corner.
+  The `/api/*` proxy moved to a Start server route and gained the
+  `/api/assistant/*` branch. Recipes get a stable generated card image derived
+  from their title, since CookVault stores no photos. The library gained
+  A-to-Z and cheapest-first sorts, which the API already offered.
+- Compose gains an `assistant` service and a data volume for its audit log;
+  the frontend image is now `oven/bun` running Nitro's Bun preset. CI's
+  frontend job uses Bun, and an assistant job typechecks and tests the
+  service.
+
 - **Import from a cooking video** (`POST /import/video`, migration `0011`).
   yt-dlp reads a YouTube, TikTok or Instagram link; the description *and* the
   spoken transcript are both pulled and both kept, because the spec's first

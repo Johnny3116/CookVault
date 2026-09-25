@@ -253,6 +253,52 @@ class MealPlanDraftResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------
+# get_meal_plan
+# --------------------------------------------------------------------------
+
+
+class GetMealPlanRequest(AgentRequest):
+    """A window of the calendar, so the agent can see what is already planned
+    before it proposes anything. Both bounds optional: omitted means unbounded.
+
+    Query parameters on the route rather than a body -- it is a GET -- but kept
+    as a model so the eval harness generates the tool schema from the contract
+    like every other tool, instead of transcribing it.
+    """
+
+    start: CalendarDate | None = Field(
+        default=None, description="First day to include. Omit for no lower bound."
+    )
+    end: CalendarDate | None = Field(
+        default=None, description="Last day to include. Omit for no upper bound."
+    )
+
+
+class PlannedEntry(BaseModel):
+    """One thing on the calendar, with its title attached.
+
+    The title is here because the agent reads this to answer "what am I
+    cooking Thursday?", and an answer made of recipe ids is not an answer.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    date: CalendarDate
+    recipe_id: uuid.UUID
+    recipe_title: str
+    meal_type: MealType | None = None
+    servings: int | None = None
+    # `auto` means the entry came from an approved proposal, `manual` that
+    # John planned it by hand. Reported, never settable through this surface.
+    mode: str
+
+
+class GetMealPlanResponse(BaseModel):
+    entries: list[PlannedEntry]
+
+
+# --------------------------------------------------------------------------
 # the manifest
 # --------------------------------------------------------------------------
 

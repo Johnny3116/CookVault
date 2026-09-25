@@ -1,11 +1,7 @@
-# Without this, `COPY . .` drags the host's node_modules into the image and
-# clobbers what `npm ci` just installed -- possibly with modules built for a
-# different platform.
 node_modules
-.next
-out
-npm-debug.log*
-.env
-.env.local
-Dockerfile
-.dockerignore
+dist
+.output
+.nitro
+.tanstack
+.git
+*.log

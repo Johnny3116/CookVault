@@ -77,24 +77,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: "20"  # matches frontend/Dockerfile
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          bun-version: latest
 
       - name: Install dependencies
         working-directory: frontend
-        # ci, not install: fails loudly if the lockfile and package.json drift.
-        run: npm ci
+        # Fails loudly if the lockfile and package.json drift.
+        run: bun install --frozen-lockfile
 
       - name: Typecheck
         working-directory: frontend
-        run: npx tsc --noEmit
+        run: bun run typecheck
 
       - name: Build
         working-directory: frontend
-        run: npm run build
+        run: bun run build
+
+  assistant:
+    name: Assistant (typecheck + tests)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: cookvault-assistant
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: cookvault-assistant
+        run: bun run typecheck
+
+      - name: Run tests
+        working-directory: cookvault-assistant
+        # Offline: the model and CookVault are both faked. Nothing here
+        # reaches Ollama; the live loop is proven by hand on NexusBody.
+        run: bun test
 
   images:
     name: Docker images build
@@ -110,3 +133,6 @@ jobs:
 
       - name: Build frontend image
         run: docker build ./frontend
+
+      - name: Build assistant image
+        run: docker build ./cookvault-assistant

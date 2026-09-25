@@ -70,6 +70,17 @@ def test_expired_tokens_are_rejected(locked_client, monkeypatch):
     assert locked_client.get("/recipes").status_code == 401
 
 
+def test_session_check_is_open_when_the_gate_is_off(client):
+    assert client.get("/auth/session").json() == {"authenticated": True}
+
+
+def test_session_check_answers_for_the_cookie_it_is_given(locked_client):
+    """The assistant proxy forwards a chat only when this says yes."""
+    assert locked_client.get("/auth/session").status_code == 401
+    locked_client.post("/auth/login", json={"password": TEST_PASSWORD})
+    assert locked_client.get("/auth/session").json() == {"authenticated": True}
+
+
 def test_logout_clears_the_session(locked_client):
     locked_client.post("/auth/login", json={"password": TEST_PASSWORD})
 

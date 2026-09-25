@@ -27,6 +27,7 @@ something, the agent does not get to reopen it.
 from __future__ import annotations
 
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
@@ -123,6 +124,16 @@ TOOLS: list[sa.ToolDescriptor] = [
         path="/agent/recipes/{recipe_id}",
         writes=False,
         summary="One saved recipe in full, with ingredients, steps, alternates and provenance.",
+    ),
+    sa.ToolDescriptor(
+        name="get_meal_plan",
+        method="GET",
+        path="/agent/meal-plan",
+        writes=False,
+        summary=(
+            "What is already on the calendar for a date range, with recipe titles. "
+            "Read it before proposing a week, so a week does not serve the same thing twice."
+        ),
     ),
     sa.ToolDescriptor(
         name="create_recipe_draft",
@@ -278,6 +289,45 @@ def get_recipe(recipe_id: uuid.UUID, db: Session = Depends(get_db)):
     if recipe is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found")
     return recipe
+
+
+@router.get("/meal-plan", response_model=sa.GetMealPlanResponse)
+def get_meal_plan(
+    start: date | None = None, end: date | None = None, db: Session = Depends(get_db)
+):
+    """The calendar as it stands. Read-only, and the whole reason it exists is
+    the sentence in the eval harness: the agent could propose a week without
+    being able to see what was already planned.
+
+    Same rows John's calendar reads, with the recipe title joined in so the
+    answer to "what am I cooking Thursday?" is a dish and not an id.
+    """
+    if start is not None and end is not None and start > end:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="start must not be after end"
+        )
+    stmt = select(models.MealPlanEntry, models.Recipe.title).join(
+        models.Recipe, models.Recipe.id == models.MealPlanEntry.recipe_id
+    )
+    if start is not None:
+        stmt = stmt.where(models.MealPlanEntry.date >= start)
+    if end is not None:
+        stmt = stmt.where(models.MealPlanEntry.date <= end)
+    rows = db.execute(stmt.order_by(models.MealPlanEntry.date)).all()
+    return sa.GetMealPlanResponse(
+        entries=[
+            sa.PlannedEntry(
+                id=entry.id,
+                date=entry.date,
+                recipe_id=entry.recipe_id,
+                recipe_title=title,
+                meal_type=entry.meal_type,
+                servings=entry.servings,
+                mode=entry.mode.value,
+            )
+            for entry, title in rows
+        ]
+    )
 
 
 # --------------------------------------------------------------------------

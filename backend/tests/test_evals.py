@@ -56,16 +56,18 @@ def test_the_fields_the_model_may_not_set_are_absent():
     assert extraction.OMITTED <= set(RecipeCreate.model_fields)
 
 
-def test_the_provisional_meal_plan_schema_matches_the_real_endpoint():
-    """`GetMealPlanRequest` is hand-written because the endpoint isn't on the
-    agent surface yet. This is what stops the copy drifting from the thing it
-    mirrors before Phase 1 replaces it."""
-    from app.routers.meal_plan import list_entries
+def test_the_meal_plan_schema_matches_the_agent_route():
+    """`GetMealPlanRequest` is generated from the contract now that the route
+    exists on the agent surface. A GET carries its arguments as query
+    parameters, so this is what stops the model and the route drifting apart."""
+    from app.routers.agent import get_meal_plan
+    from app.schemas_agent import GetMealPlanRequest
 
     endpoint = {
-        name for name in inspect.signature(list_entries).parameters if name != "db"
+        name for name in inspect.signature(get_meal_plan).parameters if name != "db"
     }
 
+    assert tools.GetMealPlanRequest is GetMealPlanRequest
     assert set(tools.GetMealPlanRequest.model_fields) == endpoint
 
 

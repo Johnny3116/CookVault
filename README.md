@@ -14,8 +14,15 @@ delete, favorite), the four-column recipe detail page, alternates, shopping list
 grouped by aisle, meal planning by hand and by proposal, nondestructive scaling,
 the draft review queue that everything imported passes through, import from a URL
 or pasted text, import from a cooking video's description and transcript,
-cooking history, a pantry, whole-library backup and restore, and the `/agent`
-tool surface Agent Zero calls in through.
+cooking history, a pantry, whole-library backup and restore, the `/agent`
+tool surface, and **Sage** — a local-model cooking assistant that reads the
+cookbook through that surface and proposes drafts into the same queue. See
+[Sage](#sage-the-assistant) and [`cookvault-assistant/README.md`](./cookvault-assistant/README.md).
+
+**The front-end is the Lovable design.** Glass panels, DM Sans and Fraunces,
+the dashboard-first layout with the week and the shopping list up top, and Sage
+in the corner. It is a TanStack Start app run with Bun; every page the old
+Next.js front-end had was rebuilt in it.
 
 **Auto-fill meal planning is built and needed no model at all.** "Diverse" is
 arithmetic over the cook log, so CookVault does it itself and shows its working
@@ -42,6 +49,11 @@ fixtures. The yt-dlp call itself is unproven until it runs on NexusBody.
 - The frontend has no tests of its own; CI typechecks and builds it, but nothing
   exercises the pages. The draft lifecycle has been driven end to end in a real
   browser, but by hand rather than by anything that runs in CI.
+- Sage cannot touch the shopping list. `/agent` has no shopping-list route, and
+  adding one means the first agent write that is not a draft — worth deciding
+  on purpose rather than slipping in.
+- Sage's conversations live in the browser tab and nowhere else. Reload keeps
+  them; a new tab starts fresh.
 - A video's transcript is kept for you to read, not turned into ingredients.
   Structuring speech needs a model, and CookVault does not call one itself —
   though one can propose a recipe through `/agent/recipe-drafts`.
@@ -67,8 +79,36 @@ fixtures. The yt-dlp call itself is unproven until it runs on NexusBody.
 ## Stack
 
 - Backend: FastAPI + SQLAlchemy + Alembic + PostgreSQL
-- Frontend: Next.js (App Router) + Tailwind
+- Frontend: TanStack Start (React 19, Vite, Tailwind 4) on Bun
+- Assistant: Bun + TypeScript, Ollama (qwen3:8b) on NexusBody
 - Deployment: Docker Compose
+
+## Sage, the assistant
+
+Sage is the "Ask Sage" button in the corner. It is a local Qwen with seven
+tools onto `/agent`, and the whole design fits in one sentence: **Sage
+proposes, CookVault validates, John approves.** It can read the library, the
+calendar and the ranked meal-plan candidates; it can propose a recipe draft or
+a week; it cannot promote, approve, delete or touch the shopping list, because
+the surface it talks to has none of those routes.
+
+```
+browser ─► frontend /api/assistant/* ─► cookvault-assistant ─► Ollama (qwen3:8b)
+            (session cookie checked      (bounded tool loop)        │
+             against /auth/session)             └─► backend /agent/* (X-API-Key)
+```
+
+The assistant service is in [`cookvault-assistant/`](./cookvault-assistant/)
+with its own README; the spec it was built to is
+[`cookvault-assistant/Qwen-Integration.md`](./cookvault-assistant/Qwen-Integration.md).
+It shares `AGENT_API_KEY` with the backend and reads Ollama at
+`AI_BASE_URL`. If either is unreachable, Sage says so in its panel and the rest
+of CookVault carries on unaffected.
+
+What was added on the backend for it: `GET /agent/meal-plan` (the calendar
+with titles, so "what am I cooking Thursday?" is answerable — the gap the
+eval harness had flagged) and `GET /auth/session`, the yes/no the frontend
+proxy asks before forwarding a chat.
 
 ## The cooking pipeline
 
@@ -405,18 +445,16 @@ deleted in between — and nothing is written if any of them fail.
 ## Architecture note: one port, not two
 
 The browser only ever talks to the frontend's origin. `/api/*` is proxied
-server-side to the backend by `frontend/app/api/[...path]/route.ts`. That means:
+server-side by the Start server route in `frontend/src/routes/api/$.ts`:
+`/api/assistant/*` goes to Sage (after the session cookie has been checked
+against the backend), everything else to the backend. That means:
 
 - no CORS configuration to keep in sync,
-- no backend address baked into the client bundle (so no rebuild when it changes),
+- no backend or assistant address in the client bundle (so no rebuild when
+  one changes — both are read from the environment per request),
 - the session cookie is same-origin, so the browser actually sends it,
+- the assistant needs no port on the host and no auth of its own,
 - **only one port needs `tailscale serve`.**
-
-The proxy is a route handler rather than a Next `rewrites()` entry on purpose:
-Next resolves rewrite destinations at *build* time and bakes them into the routes
-manifest, so a rewrite can't be repointed by an environment variable at deploy
-time. If you ever move this back to a rewrite, `BACKEND_ORIGIN` silently stops
-working.
 
 ## Project layout
 
@@ -438,18 +476,27 @@ backend/
                          recipe search, meal planning
   alembic/versions/      Migrations (0001 initial ... 0011 video import)
   docker-entrypoint.sh   Runs migrations, then uvicorn
-frontend/
-  app/
-    api/[...path]/       Server-side proxy to the backend
-    recipes/             Detail, edit and new-recipe pages
+frontend/                TanStack Start, file-based routes
+  src/routes/
+    __root.tsx           Shell: nav, Sage, toasts
+    api/$.ts             Server-side proxy: /api/* → backend, /api/assistant/* → Sage
+    index.tsx            Dashboard: the week, the list, recent recipes
+    recipes/             Detail (with scaling), edit, new
     drafts/              The review queue: import, propose, validate, promote
-    calendar/proposals/  Proposed weeks, waiting to be approved
-    pantry/              Staples, and backup export/restore
-    login/               Password gate
-    ...                  Dashboard, library, finder, shopping list, calendar
-  components/RecipeForm.tsx  Shared by the new and edit pages
-  lib/                   api client, date helpers, formatting helpers
-  types.ts               API response types
+    calendar/            The week, and proposals/ waiting to be approved
+    ...                  Library, finder, shopping list, pantry, login
+  src/components/
+    RecipeForm.tsx       Shared by new, edit and draft review
+    sage/                The chat panel and the SSE client hook
+  src/lib/               api client, date/format helpers, recipe helpers
+  src/styles.css         The Lovable theme; styles.cookvault.css the additions
+  src/types.ts           API response types
+cookvault-assistant/     Sage. See its README
+  src/agent.ts           The bounded tool loop
+  src/tools/             The seven tools, Zod-validated
+  src/provider/          Ollama, behind a small interface
+  prompts/system.md      Sage's instructions
+  tests/                 Offline, against a faked model and a faked CookVault
 ```
 
 ## Local development
@@ -465,11 +512,17 @@ is no manual first-run step.
 
 - App: http://localhost:3420
 - Backend directly (optional, for `/docs`): http://localhost:8420
+- Sage directly (optional, `/health`): http://localhost:8520
 
-To run the frontend outside Compose, point it at a reachable backend:
+Compose reaches Ollama at `host.docker.internal:11435`; set `AI_BASE_URL` in
+`.env` if it lives elsewhere.
+
+To run the frontend or the assistant outside Compose, point them at a
+reachable backend:
 
 ```bash
-cd frontend && BACKEND_ORIGIN=http://localhost:8420 npm run dev
+cd frontend && BACKEND_ORIGIN=http://localhost:8420 ASSISTANT_ORIGIN=http://localhost:8500 bun run dev
+cd cookvault-assistant && AGENT_API_KEY=… AI_BASE_URL=http://nexusbody:11435 COOKVAULT_ORIGIN=http://localhost:8420 bun run dev
 ```
 
 ### Changing the schema
@@ -515,7 +568,8 @@ request and every push to `main`:
 | Job | What it catches |
 |---|---|
 | **backend** | Migrations that fail to apply or to reverse, models that drifted from their migration (`alembic check`), and API regressions (`pytest`) |
-| **frontend** | Type errors (`tsc --noEmit`), build failures, and a `package.json`/lockfile mismatch (`npm ci`) |
+| **frontend** | Type errors (`tsc --noEmit`), build failures, and a `package.json`/lockfile mismatch (`bun install --frozen-lockfile`) |
+| **assistant** | Type errors and the loop's behaviour (`bun test`, offline against fakes) |
 | **images** | A Dockerfile that no longer builds — a broken deploy even when the app code is fine |
 
 ## Deploying on NexusBody
@@ -523,8 +577,10 @@ request and every push to `main`:
 This is a Tailscale-only homelab app — never exposed publicly. Every service binds
 its container port to `127.0.0.1` only and gets fronted by `tailscale serve`.
 
-1. `git clone` this repo, `cp .env.example .env`, and set `COOKVAULT_PASSWORD` if
-   you want the password gate (leaving it blank is reasonable on a tailnet).
+1. `git clone` this repo, `cp .env.example .env`, set `AGENT_API_KEY` (Sage
+   needs it; blank means no Sage), and set `COOKVAULT_PASSWORD` if you want the
+   password gate (leaving it blank is reasonable on a tailnet). Ollama must be
+   reachable from Docker at `AI_BASE_URL` with `AI_MODEL` pulled.
 2. `docker compose up -d --build` — that's it; migrations run on boot.
 3. Front the single frontend port with Tailscale Serve (not Funnel):
    `tailscale serve --bg --https=443 127.0.0.1:3420`
@@ -549,6 +605,7 @@ output.)
 |---|---|---|
 | frontend | 3420 | bound to 127.0.0.1, fronted via `tailscale serve` — the only one needed |
 | backend | 8420 | bound to 127.0.0.1; optional, for direct API access and `/docs` |
+| assistant | 8520 | bound to 127.0.0.1; optional, for `/health`. Chats only arrive through the frontend proxy |
 | postgres | — | internal to the compose network only, not exposed to the host |
 
 ## Configuration
@@ -560,11 +617,13 @@ Everything lives in `.env` (see [`.env.example`](./.env.example)):
 | `DATABASE_URL` | Postgres connection string; must match the compose service |
 | `COOKVAULT_PASSWORD` | Optional password gate. Blank disables auth entirely |
 | `CORS_ORIGINS` | Normally empty — only needed to hit the backend port directly from a browser |
-| `AGENT_API_KEY` | The key Agent Zero presents to reach `/agent`. Blank switches that surface off entirely. Minimum 32 characters, enforced at startup |
+| `AGENT_API_KEY` | The key that opens `/agent`. The backend checks it and Sage presents it. Blank switches that surface off entirely and Sage reports itself unavailable. Minimum 32 characters, enforced at startup |
+| `AI_BASE_URL` / `AI_MODEL` / `AI_THINK` / `AI_NUM_CTX` / `AI_TEMPERATURE` / `MAX_TOOL_ROUNDS` | Sage's model and loop settings — see `cookvault-assistant/README.md` |
 | `AGENT_ZERO_BASE_URL` / `AGENT_ZERO_API_KEY` | The *outbound* direction, still not used — see `backend/app/agent_zero_client.py` |
 
-`BACKEND_ORIGIN` is set by `docker-compose.yml` rather than `.env`; it tells the
-frontend server where to proxy `/api/*` and is never seen by the browser.
+`BACKEND_ORIGIN` and `ASSISTANT_ORIGIN` are set by `docker-compose.yml` rather
+than `.env`; they tell the frontend server where to proxy `/api/*` and are never
+seen by the browser.
 
 ## Auth
 

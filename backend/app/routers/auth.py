@@ -1,12 +1,24 @@
 import hmac
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 
-from app.auth import COOKIE_NAME, MAX_AGE_SECONDS, auth_enabled, issue_token
+from app.auth import COOKIE_NAME, MAX_AGE_SECONDS, auth_enabled, issue_token, require_auth
 from app.config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.get("/session", dependencies=[Depends(require_auth)])
+def session_check():
+    """Is this cookie good? 200 or 401, nothing else.
+
+    Exists for the frontend's assistant proxy, which has to decide whether to
+    forward a chat to the assistant service without knowing the signing key.
+    It asks the one thing that does. With the gate off this is always 200,
+    which is the same answer every other endpoint gives.
+    """
+    return {"authenticated": True}
 
 
 class LoginRequest(BaseModel):

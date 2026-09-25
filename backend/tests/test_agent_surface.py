@@ -114,6 +114,9 @@ EXPECTED_ROUTES = {
     ("POST", "/agent/parse-recipe-source"),
     ("POST", "/agent/search-recipes"),
     ("GET", "/agent/recipes/{recipe_id}"),
+    # Read-only: the calendar as it stands, so a proposal can avoid what is
+    # already planned. Added for the assistant; it cannot write an entry.
+    ("GET", "/agent/meal-plan"),
     ("POST", "/agent/recipe-drafts"),
     ("GET", "/agent/recipe-drafts/{draft_id}"),
     ("PATCH", "/agent/recipe-drafts/{draft_id}"),
@@ -390,6 +393,39 @@ def test_reading_one_recipe_in_full(agent, library):
     assert recipe["title"] == "Quick Pasta"
     assert [i["name"] for i in recipe["ingredients"]] == ["zucchini", "apple", "black pepper"]
     assert recipe["steps"]
+
+
+def test_reading_the_meal_plan_carries_titles(agent, library):
+    """The agent reads this to answer "what am I cooking Thursday?", and an
+    answer made of ids is not an answer."""
+    pasta = library["Quick Pasta"]["id"]
+    agent.post(
+        "/meal-plan",
+        json={"date": "2026-03-05", "recipe_id": pasta, "meal_type": "dinner", "servings": 3},
+    )
+    agent.post("/meal-plan", json={"date": "2026-03-20", "recipe_id": library["Slow Stew"]["id"]})
+
+    body = agent.get("/agent/meal-plan", params={"start": "2026-03-01", "end": "2026-03-07"}).json()
+
+    assert [e["recipe_title"] for e in body["entries"]] == ["Quick Pasta"]
+    entry = body["entries"][0]
+    assert entry["date"] == "2026-03-05"
+    assert entry["meal_type"] == "dinner"
+    assert entry["servings"] == 3
+    assert entry["mode"] == "manual"
+
+
+def test_reading_the_meal_plan_unbounded_returns_everything(agent, library):
+    agent.post("/meal-plan", json={"date": "2026-03-05", "recipe_id": library["Quick Pasta"]["id"]})
+    agent.post("/meal-plan", json={"date": "2026-04-05", "recipe_id": library["Slow Stew"]["id"]})
+
+    assert len(agent.get("/agent/meal-plan").json()["entries"]) == 2
+
+
+def test_a_backwards_window_is_refused(agent):
+    response = agent.get("/agent/meal-plan", params={"start": "2026-03-07", "end": "2026-03-01"})
+
+    assert response.status_code == 400
 
 
 def test_reading_a_missing_recipe(agent):
