@@ -115,7 +115,7 @@ function DraftPage() {
           <span className="inline-flex flex-wrap items-center gap-2">
             <span className={STATUS_PILL[draft.status]}>{draft.status}</span>
             {draft.status === "ready" && "validated, waiting on you"}
-            {draft.created_by === "agent" && <span className="pill pill-honey">proposed by Sage</span>}
+            {draft.created_by === "agent" && <span className="pill pill-honey">proposed by ChefNexus</span>}
           </span>
         }
         actions={

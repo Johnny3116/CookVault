@@ -81,7 +81,7 @@ export function createApp(deps: AppDeps) {
 
     const report = await health();
     if (!report.ok) {
-      return Response.json({ detail: `Sage is unavailable: ${report.detail ?? "model or CookVault unreachable"}` }, { status: 503 });
+      return Response.json({ detail: `ChefNexus is unavailable: ${report.detail ?? "model or CookVault unreachable"}` }, { status: 503 });
     }
 
     const encoder = new TextEncoder();
@@ -100,7 +100,7 @@ export function createApp(deps: AppDeps) {
           .run({ conversationId: parsed.data.conversation_id, messages: parsed.data.messages, signal: request.signal }, emit)
           .catch((err) => {
             log("error", "api", "unhandled turn failure", { error: String(err) });
-            emit({ event: "error", data: { message: "Sage hit a problem answering that." } });
+            emit({ event: "error", data: { message: "ChefNexus hit a problem answering that." } });
           })
           .finally(() => {
             closed = true;

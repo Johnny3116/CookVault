@@ -9,7 +9,7 @@ import { createFileRoute } from "@tanstack/react-router";
  *
  * Two upstreams:
  *
- * - `/api/assistant/*` goes to the Sage service. Before forwarding, the
+ * - `/api/assistant/*` goes to the ChefNexus service. Before forwarding, the
  *   request's cookie is checked against the backend's `/auth/session`, so the
  *   assistant sits behind John's password gate without knowing the signing
  *   key -- and the assistant itself never needs a port on the host.
@@ -90,7 +90,7 @@ async function proxy({ request, params }: { request: Request; params: { _splat?:
     if (request.signal.aborted) return new Response(null, { status: 499 });
     console.error(`Proxy to ${target.pathname} failed:`, err);
     return Response.json(
-      { detail: toAssistant ? "Sage is unreachable" : "Backend unreachable" },
+      { detail: toAssistant ? "ChefNexus is unreachable" : "Backend unreachable" },
       { status: 502 },
     );
   }

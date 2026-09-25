@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { ToolRegistry, type Tool } from "./registry.ts";
 
-/** The tools Sage has. Each wraps one call on CookVault's /agent surface and
+/** The tools ChefNexus has. Each wraps one call on CookVault's /agent surface and
  *  reshapes the answer for a model: fewer fields, no nulls to trip over. */
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD");

@@ -99,7 +99,7 @@ export class Agent {
         log("info", "orchestrator", "turn cancelled", { conversation: input.conversationId });
         return;
       }
-      const message = err instanceof ProviderError ? `Sage couldn't reach its model: ${err.message}` : "Sage hit a problem answering that.";
+      const message = err instanceof ProviderError ? `ChefNexus couldn't reach its model: ${err.message}` : "ChefNexus hit a problem answering that.";
       log("error", "orchestrator", "turn failed", { conversation: input.conversationId, error: String(err) });
       emit({ event: "error", data: { message } });
     } finally {

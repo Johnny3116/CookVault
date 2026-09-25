@@ -6,7 +6,7 @@ const ARRIVAL: Record<ImportMethod, string> = {
   paste: "pasted text, parsed",
   url_fetch: "fetched from a page",
   video_fetch: "read from a video",
-  agent: "proposed by Sage",
+  agent: "proposed by ChefNexus",
 };
 
 /** Where a draft or recipe came from, shown read-only.

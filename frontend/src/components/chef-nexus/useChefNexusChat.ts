@@ -22,11 +22,11 @@ export type ChatMessage = {
   error?: string;
 };
 
-export type SageHealth = { ok: boolean; model?: string; provider?: string; detail?: string };
+export type ChefNexusHealth = { ok: boolean; model?: string; provider?: string; detail?: string };
 
 type Status = "idle" | "streaming" | "error";
 
-const STORAGE_KEY = "cookvault.sage.conversation";
+const STORAGE_KEY = "cookvault.chefnexus.conversation";
 
 function newId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Date.now() + Math.random());
@@ -52,10 +52,10 @@ function parseSse(buffer: string): { frames: { event: string; data: string }[]; 
   return { frames, rest };
 }
 
-export function useSageChat() {
+export function useChefNexusChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<Status>("idle");
-  const [health, setHealth] = useState<SageHealth | null>(null);
+  const [health, setHealth] = useState<ChefNexusHealth | null>(null);
   const conversationId = useRef(newId());
   const abort = useRef<AbortController | null>(null);
 
@@ -85,10 +85,10 @@ export function useSageChat() {
   const checkHealth = useCallback(async () => {
     try {
       const res = await fetch("/api/assistant/health", { cache: "no-store" });
-      const body = (await res.json()) as SageHealth;
-      setHealth(res.ok ? body : { ok: false, detail: body.detail ?? `Sage answered ${res.status}` });
+      const body = (await res.json()) as ChefNexusHealth;
+      setHealth(res.ok ? body : { ok: false, detail: body.detail ?? `ChefNexus answered ${res.status}` });
     } catch {
-      setHealth({ ok: false, detail: "Sage is unreachable" });
+      setHealth({ ok: false, detail: "ChefNexus is unreachable" });
     }
   }, []);
 
@@ -121,7 +121,7 @@ export function useSageChat() {
         });
         if (!res.ok || !res.body) {
           const detail = await res.text().catch(() => "");
-          throw new Error(res.status === 401 ? "You need to sign in first." : detail || `Sage answered ${res.status}`);
+          throw new Error(res.status === 401 ? "You need to sign in first." : detail || `ChefNexus answered ${res.status}`);
         }
 
         const reader = res.body.getReader();
@@ -157,7 +157,7 @@ export function useSageChat() {
           setStatus("idle");
           return;
         }
-        const message = err instanceof Error ? err.message : "Sage couldn't answer.";
+        const message = err instanceof Error ? err.message : "ChefNexus couldn't answer.";
         patchAssistant(assistant.id, (m) => ({ ...m, error: message }));
         setStatus("error");
       } finally {

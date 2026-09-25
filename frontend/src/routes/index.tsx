@@ -173,7 +173,7 @@ function Dashboard() {
           <div className="glass-panel p-10 text-center text-destructive">Your recipes could not be loaded.</div>
         ) : all.length === 0 ? (
           <EmptyState title="No recipes yet">
-            Add your first one, paste one in, or ask Sage to draft one from a conversation.
+            Add your first one, paste one in, or ask ChefNexus to draft one from a conversation.
           </EmptyState>
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">

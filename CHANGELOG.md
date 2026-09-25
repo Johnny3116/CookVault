@@ -11,7 +11,7 @@ dates are commit dates rather than release dates.
 
 ### Added
 
-- **Sage, the assistant** (`cookvault-assistant/`). A local Qwen (qwen3:8b via
+- **ChefNexus, the assistant** (`cookvault-assistant/`). A local Qwen (qwen3:8b via
   Ollama on NexusBody) with seven tools onto the `/agent` surface, run as its
   own Bun service and reached only through the frontend proxy, which checks
   the session cookie first. It reads the library, the calendar and the ranked
@@ -28,7 +28,7 @@ dates are commit dates rather than release dates.
   harness had flagged. Its request model now lives in the contract and the
   harness's hand-written copy is gone.
 - **`GET /auth/session`**: 200 or 401 for the cookie it is given. The frontend
-  proxy asks it before forwarding a chat to Sage, which is how Sage sits
+  proxy asks it before forwarding a chat to ChefNexus, which is how ChefNexus sits
   behind the password gate without knowing the signing key.
 - `.gitattributes` pinning `*.sh` to LF, so a Windows checkout no longer
   produces an entrypoint Docker cannot exec.
@@ -38,7 +38,7 @@ dates are commit dates rather than release dates.
 - **The front-end is rebuilt on the Lovable design**: TanStack Start (React
   19, Vite, Tailwind 4) on Bun, replacing the Next.js app. Same pages, same
   API, new look — glass panels, DM Sans and Fraunces, a dashboard-first home
-  with the week's plan and the shopping list up top, and Sage in the corner.
+  with the week's plan and the shopping list up top, and ChefNexus in the corner.
   The `/api/*` proxy moved to a Start server route and gained the
   `/api/assistant/*` branch. Recipes get a stable generated card image derived
   from their title, since CookVault stores no photos. The library gained

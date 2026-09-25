@@ -61,7 +61,7 @@ function DraftsPage() {
       {drafts.error && <ErrorText>{describeApiError(drafts.error)}</ErrorText>}
 
       {drafts.data && drafts.data.length === 0 ? (
-        <EmptyState title="Nothing here">The queue is clear. Import something, or ask Sage to draft a recipe.</EmptyState>
+        <EmptyState title="Nothing here">The queue is clear. Import something, or ask ChefNexus to draft a recipe.</EmptyState>
       ) : (
         <div className="glass-panel p-2 sm:p-4">
           <ul className="list-rows">
@@ -79,7 +79,7 @@ function DraftsPage() {
                 <div className="flex items-center gap-2">
                   {draft.created_by === "agent" && (
                     <span className="pill pill-honey">
-                      <Bot className="size-3" /> proposed by Sage
+                      <Bot className="size-3" /> proposed by ChefNexus
                     </span>
                   )}
                   <span className={STATUS_PILL[draft.status]}>{draft.status}</span>

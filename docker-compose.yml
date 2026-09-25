@@ -41,7 +41,7 @@ services:
       - cookvault
 
   assistant:
-    # Sage. Talks to Ollama on the host and to the backend's /agent surface;
+    # ChefNexus. Talks to Ollama on the host and to the backend's /agent surface;
     # reached only through the frontend's proxy, which checks the session
     # cookie first. See cookvault-assistant/README.md.
     build: ./cookvault-assistant

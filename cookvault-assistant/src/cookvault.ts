@@ -2,7 +2,7 @@ import { log } from "./log.ts";
 
 /** CookVault's /agent surface, as a client.
  *
- * Everything Sage knows about the cookbook comes through here, and everything
+ * Everything ChefNexus knows about the cookbook comes through here, and everything
  * it proposes goes out through here. The surface is CookVault's, the key
  * opens exactly that surface, and CookVault validates every write -- which is
  * why this file has no business logic in it.

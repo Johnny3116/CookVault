@@ -1,6 +1,6 @@
-/** Server-sent events, the frame the browser's useSageChat reads.
+/** Server-sent events, the frame the browser's useChefNexusChat reads.
  *
- * The event names are the contract with frontend/src/components/sage/useSageChat.ts:
+ * The event names are the contract with frontend/src/components/chef-nexus/useChefNexusChat.ts:
  *   text   {delta}
  *   tool   {id, name, label, status, summary?, links?}
  *   error  {message}

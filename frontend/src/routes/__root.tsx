@@ -11,7 +11,7 @@ import type { ReactNode } from "react";
 import { Toaster } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
-import { SageAssistant } from "@/components/sage/SageAssistant";
+import { ChefNexusAssistant } from "@/components/chef-nexus/ChefNexusAssistant";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -59,7 +59,7 @@ function RootComponent() {
       <AppShell>
         <Outlet />
       </AppShell>
-      <SageAssistant />
+      <ChefNexusAssistant />
       <Toaster position="bottom-center" richColors closeButton />
     </QueryClientProvider>
   );

@@ -32,7 +32,7 @@ function FinderPage() {
       <PageHeader
         eyebrow="Finder"
         title="What are you in the mood for?"
-        intro="Searches your own collection by title and tag. For the conversational version — budget, time, what's in the fridge — ask Sage."
+        intro="Searches your own collection by title and tag. For the conversational version — budget, time, what's in the fridge — ask ChefNexus."
       />
       <form
         className="search-field mb-6 max-w-2xl"

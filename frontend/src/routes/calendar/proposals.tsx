@@ -17,7 +17,7 @@ export const Route = createFileRoute("/calendar/proposals")({
 
 /** Proposed weeks, waiting to be said yes to.
  *
- * The review surface for auto-fill and for anything Sage proposes. The thing
+ * The review surface for auto-fill and for anything ChefNexus proposes. The thing
  * it has to make easy is disagreeing: a plan you can only accept whole or
  * reject whole is one you reject, so every meal can be swapped or dropped.
  */
@@ -73,7 +73,7 @@ function ProposalsPage() {
 
       {drafts.data && open.length === 0 && (
         <EmptyState title="No proposals waiting">
-          Use <strong>Propose a week</strong> on the calendar, or ask Sage to plan one.
+          Use <strong>Propose a week</strong> on the calendar, or ask ChefNexus to plan one.
         </EmptyState>
       )}
 
@@ -83,7 +83,7 @@ function ProposalsPage() {
             <div>
               <h2 className="font-display text-xl font-semibold">{draft.title?.trim() || "Untitled plan"}</h2>
               <p className="text-xs text-muted-foreground">
-                {draft.created_by === "agent" ? `proposed by Sage${draft.agent_model ? ` (${draft.agent_model})` : ""}` : "proposed by CookVault from your cooking history"}
+                {draft.created_by === "agent" ? `proposed by ChefNexus${draft.agent_model ? ` (${draft.agent_model})` : ""}` : "proposed by CookVault from your cooking history"}
               </p>
             </div>
             <div className="flex gap-2">

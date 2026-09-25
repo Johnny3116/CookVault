@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Sage: CookVault's cooking assistant. A bounded tool-calling loop over a local Qwen via Ollama, proposing through CookVault's /agent surface.",
+  "description": "ChefNexus: CookVault's cooking assistant. A bounded tool-calling loop over a local Qwen via Ollama, proposing through CookVault's /agent surface.",
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "start": "bun run src/index.ts",

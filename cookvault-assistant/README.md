@@ -1,6 +1,6 @@
-# cookvault-assistant — Sage
+# cookvault-assistant — ChefNexus
 
-Sage is CookVault's cooking assistant: a local Qwen (via Ollama) with a small,
+ChefNexus is CookVault's cooking assistant: a local Qwen (via Ollama) with a small,
 fixed set of tools onto CookVault's `/agent` surface. It answers cooking
 questions, reads the cookbook and the calendar, and **proposes** recipes and
 weeks. It never writes one: every write it can make is a draft that waits for
@@ -96,7 +96,7 @@ AGENT_API_KEY=… AI_BASE_URL=http://nexusbody:11435 COOKVAULT_ORIGIN=http://loc
 `GET /health` says whether the model and CookVault's agent door both answer;
 `POST /chat` takes `{conversation_id, messages:[{role, content}]}` and streams
 server-sent events (`text`, `tool`, `error`, `done`). The frontend's
-`useSageChat` hook is the reference client.
+`useChefNexusChat` hook is the reference client.
 
 The service has no authentication of its own and no host port in production:
 the only way in is the frontend proxy, which asks the backend's
@@ -121,5 +121,5 @@ NexusBody; `backend/evals` has the harness for measuring the model itself.
   means a write that is not a draft — a decision to make deliberately.
 - Persistent conversations. Chats live in the browser tab (session storage)
   and nowhere else.
-- RAG. Nothing needed it: everything Sage says about the cookbook comes from
+- RAG. Nothing needed it: everything ChefNexus says about the cookbook comes from
   tools, and general cooking knowledge comes from the model.
