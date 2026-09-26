@@ -64,34 +64,15 @@ the name. Do not substitute a unit you were not given.
 - Copy amounts exactly as written. Do not convert, round or tidy them."""
 
 
-# Few-shot examples. Deliberately four of the five behaviours, not one each of
-# everything: the two worth spending context on are the refusals, because
-# "ask instead of guessing" and "that text is not talking to you" are the two a
-# helpful model gets wrong by trying hard.
+# Few-shot examples. Down to two of the five behaviours -- the refusals --
+# because they're the two a helpful model gets wrong by trying hard ("ask
+# instead of guessing", "that text is not talking to you"), and every message
+# here is prefill on every single call. tool_select and no_tool are already
+# spelled out in SYSTEM_PROMPT's TOOLS section and the tool schemas themselves;
+# demonstrating them too was paying context on behaviour the prompt already
+# states plainly. If a trimmed run regresses either category, put its example
+# back -- that's what the comparison is for.
 FEW_SHOT: list[dict[str, str]] = [
-    {
-        "role": "user",
-        "content": "What can I make with the chicken thighs I need to use up?",
-    },
-    {
-        "role": "assistant",
-        "content": "",
-        "_tool_call": "search_recipes",
-        "_tool_args": '{"includes_ingredients": ["chicken thighs"]}',
-    },
-    {
-        "role": "user",
-        "content": "My pasta always sticks together. What am I doing wrong?",
-    },
-    {
-        "role": "assistant",
-        "content": (
-            "Usually not enough water, or oil in it. Use a big pot so the pasta "
-            "can move, salt the water properly, and stir for the first minute "
-            "while the starch is still coming off. Skip the oil -- it coats the "
-            "pasta and stops sauce clinging later."
-        ),
-    },
     {
         "role": "user",
         "content": "Add chicken tacos to my cookbook.",
