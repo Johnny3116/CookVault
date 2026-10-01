@@ -11,6 +11,13 @@ dates are commit dates rather than release dates.
 
 ### Added
 
+- **Starter recipe set** (`backend/seed/starter_recipes.json`) and
+  `scripts/seed_starter_recipes.py`. Nine simple recipes go into the review
+  queue as validated drafts, and nothing is promoted. Re-running skips titles
+  already saved or queued. Ingredient names stay shoppable so they merge in the
+  shopping list: across all nine recipes that is 46 lines instead of 61.
+  `tests/test_seed_data.py` keeps every entry warning-free.
+
 - **Import from a cooking video** (`POST /import/video`, migration `0011`).
   yt-dlp reads a YouTube, TikTok or Instagram link; the description *and* the
   spoken transcript are both pulled and both kept, because the spec's first

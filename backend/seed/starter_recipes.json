@@ -1,0 +1,1074 @@
+[
+  {
+    "title": "Garlic Butter Steak Bites",
+    "source_type": "manual",
+    "cook_methods": [
+      "stovetop"
+    ],
+    "prep_time": 10,
+    "cook_time": 10,
+    "servings": 2,
+    "tags": [
+      "american",
+      "steak",
+      "high-protein",
+      "low-carb",
+      "quick"
+    ],
+    "ingredients": [
+      {
+        "name": "sirloin steak",
+        "quantity": 1,
+        "unit": "lb",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "butter",
+        "quantity": 3,
+        "unit": "tbsp",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "garlic cloves",
+        "quantity": 4,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "fresh parsley",
+        "quantity": 1,
+        "unit": "tbsp",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "salt",
+        "quantity": 1,
+        "unit": "tsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "black pepper",
+        "quantity": 0.5,
+        "unit": "tsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "red pepper flakes",
+        "quantity": 0.25,
+        "unit": "tsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "vegetable oil",
+        "quantity": 1,
+        "unit": "tbsp",
+        "category": "pantry_dry_good"
+      }
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "instruction_text": "Cut the steak into 1-inch cubes, pat completely dry with paper towels, then season with the salt and pepper.",
+        "notes": "Dry meat browns; wet meat steams."
+      },
+      {
+        "order": 2,
+        "instruction_text": "Heat the oil in a cast iron or heavy skillet until it just starts to smoke.",
+        "temperature": "High heat",
+        "duration": "2-3 min"
+      },
+      {
+        "order": 3,
+        "instruction_text": "Add the steak in a single layer without crowding (work in two batches if needed). Sear without moving, then flip and sear the other side.",
+        "temperature": "High heat",
+        "duration": "2-3 min, then 1-2 min",
+        "notes": "Pull at about 130°F for medium-rare, 140°F for medium."
+      },
+      {
+        "order": 4,
+        "instruction_text": "Drop the heat, add the butter, minced garlic and red pepper flakes (optional), and toss the steak in the foaming butter until the garlic smells toasty.",
+        "temperature": "Medium heat",
+        "duration": "1 min",
+        "notes": "Don't let the garlic go dark brown or it turns bitter."
+      },
+      {
+        "order": 5,
+        "instruction_text": "Toss with the chopped parsley and serve right away, spooning the pan butter over the top."
+      }
+    ],
+    "alternates": [
+      {
+        "type": "cook_method",
+        "original_value": "Stovetop sear",
+        "alternate_value": "Air fryer at 400°F for 8-10 min, shaking halfway",
+        "notes": "Melt the butter with the garlic separately and toss the cooked bites in it."
+      },
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Sirloin steak",
+        "alternate_value": "Ribeye or flank steak",
+        "notes": "Ribeye is richer; cut flank against the grain before cubing."
+      }
+    ]
+  },
+  {
+    "title": "Lemon Garlic Butter Salmon",
+    "source_type": "manual",
+    "cook_methods": [
+      "oven"
+    ],
+    "prep_time": 5,
+    "cook_time": 15,
+    "servings": 2,
+    "tags": [
+      "american",
+      "fish",
+      "seafood",
+      "high-protein",
+      "low-carb",
+      "gluten-free",
+      "quick"
+    ],
+    "ingredients": [
+      {
+        "name": "salmon fillets",
+        "quantity": 2,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "butter",
+        "quantity": 2,
+        "unit": "tbsp",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "garlic cloves",
+        "quantity": 2,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "lemon",
+        "quantity": 1,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "salt",
+        "quantity": 0.5,
+        "unit": "tsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "black pepper",
+        "quantity": 0.25,
+        "unit": "tsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "paprika",
+        "quantity": 0.5,
+        "unit": "tsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "olive oil",
+        "quantity": 1,
+        "unit": "tbsp",
+        "category": "pantry_dry_good"
+      }
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "instruction_text": "Heat the oven and line a baking sheet with foil or parchment. Brush it with the olive oil.",
+        "temperature": "400°F"
+      },
+      {
+        "order": 2,
+        "instruction_text": "Pat the salmon (about 6 oz fillets) dry and set it skin-side down on the sheet. Season with the salt, pepper and paprika."
+      },
+      {
+        "order": 3,
+        "instruction_text": "Melt the butter and stir in the minced garlic, the lemon zest and half the lemon juice. Spoon it over the fillets."
+      },
+      {
+        "order": 4,
+        "instruction_text": "Bake until the salmon flakes easily with a fork.",
+        "temperature": "400°F",
+        "duration": "12-15 min",
+        "notes": "Done at 145°F in the thickest part."
+      },
+      {
+        "order": 5,
+        "instruction_text": "Squeeze over the remaining lemon juice and spoon the pan butter on top before serving."
+      }
+    ],
+    "alternates": [
+      {
+        "type": "cook_method",
+        "original_value": "Oven at 400°F",
+        "alternate_value": "Air fryer at 390°F for 8-10 min",
+        "notes": "Add the butter mixture for the last 2 minutes so the garlic doesn't scorch."
+      },
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Salmon",
+        "alternate_value": "Cod or tilapia",
+        "notes": "Thinner white fish needs only 10-12 min in the oven."
+      }
+    ]
+  },
+  {
+    "title": "Honey Garlic Chicken Thighs",
+    "source_type": "manual",
+    "cook_methods": [
+      "stovetop"
+    ],
+    "prep_time": 10,
+    "cook_time": 25,
+    "servings": 4,
+    "tags": [
+      "asian-inspired",
+      "chicken",
+      "high-protein",
+      "one-pan"
+    ],
+    "ingredients": [
+      {
+        "name": "boneless skinless chicken thighs",
+        "quantity": 1.5,
+        "unit": "lb",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "garlic cloves",
+        "quantity": 4,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "green onions",
+        "quantity": 2,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "honey",
+        "quantity": 3,
+        "unit": "tbsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "soy sauce",
+        "quantity": 3,
+        "unit": "tbsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "rice vinegar",
+        "quantity": 1,
+        "unit": "tbsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "salt",
+        "quantity": 0.5,
+        "unit": "tsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "black pepper",
+        "quantity": 0.5,
+        "unit": "tsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "vegetable oil",
+        "quantity": 1,
+        "unit": "tbsp",
+        "category": "pantry_dry_good"
+      },
+      {
+        "name": "white rice",
+        "quantity": 1.5,
+        "unit": "cup",
+        "category": "pantry_dry_good"
+      }
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "instruction_text": "Start the rice according to the package so it's ready when the chicken is."
+      },
+      {
+        "order": 2,
+        "instruction_text": "Pat the chicken dry and season both sides with the salt and pepper."
+      },
+      {
+        "order": 3,
+        "instruction_text": "Heat the oil in a large skillet and cook the chicken until browned on both sides and cooked through.",
+        "temperature": "Medium-high heat",
+        "duration": "5-6 min per side",
+        "notes": "Done at 165°F."
+      },
+      {
+        "order": 4,
+        "instruction_text": "Move the chicken to a plate. Lower the heat, add the minced garlic and stir until fragrant.",
+        "temperature": "Medium-low heat",
+        "duration": "30 sec"
+      },
+      {
+        "order": 5,
+        "instruction_text": "Stir in the honey, soy sauce and vinegar and simmer until it thickens enough to coat a spoon.",
+        "temperature": "Medium-low heat",
+        "duration": "2-3 min"
+      },
+      {
+        "order": 6,
+        "instruction_text": "Return the chicken and any juices to the pan and turn to coat. Serve over the rice, topped with sliced green onions."
+      }
+    ],
+    "alternates": [
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Chicken thighs",
+        "alternate_value": "Chicken breast, pounded to an even 1/2 inch",
+        "notes": "Cook 4-5 min per side; breast dries out faster, so check at 165°F."
+      },
+      {
+        "type": "cook_method",
+        "original_value": "Stovetop",
+        "alternate_value": "Oven at 425°F for 20-25 min",
+        "notes": "Bake the seasoned thighs on a sheet, make the sauce on the stove, then toss together."
+      }
+    ]
+  },
+  {
+    "title": "Cajun Chicken Pasta",
+    "source_type": "manual",
+    "cook_methods": [
+      "stovetop"
+    ],
+    "prep_time": 10,
+    "cook_time": 25,
+    "servings": 4,
+    "tags": [
+      "cajun",
+      "pasta",
+      "chicken",
+      "high-protein",
+      "comfort-food"
+    ],
+    "ingredients": [
+      {
+        "name": "boneless skinless chicken breast",
+        "quantity": 1,
+        "unit": "lb",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "bell pepper",
+        "quantity": 1,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "garlic cloves",
+        "quantity": 3,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "butter",
+        "quantity": 1,
+        "unit": "tbsp",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "heavy cream",
+        "quantity": 1,
+        "unit": "cup",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "parmesan",
+        "quantity": 0.5,
+        "unit": "cup",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "Cajun seasoning",
+        "quantity": 1,
+        "unit": "tbsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "penne pasta",
+        "quantity": 12,
+        "unit": "oz",
+        "category": "pantry_dry_good"
+      },
+      {
+        "name": "chicken broth",
+        "quantity": 0.5,
+        "unit": "cup",
+        "category": "pantry_dry_good"
+      },
+      {
+        "name": "olive oil",
+        "quantity": 1,
+        "unit": "tbsp",
+        "category": "pantry_dry_good"
+      }
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "instruction_text": "Boil the penne in well-salted water until al dente, then drain.",
+        "duration": "10-12 min"
+      },
+      {
+        "order": 2,
+        "instruction_text": "Meanwhile, cut the chicken into bite-size pieces and toss with 2 teaspoons of the Cajun seasoning."
+      },
+      {
+        "order": 3,
+        "instruction_text": "Heat the oil in a large skillet and cook the chicken until browned and cooked through. Move to a plate.",
+        "temperature": "Medium-high heat",
+        "duration": "6-7 min",
+        "notes": "Done at 165°F."
+      },
+      {
+        "order": 4,
+        "instruction_text": "Add the butter and the sliced bell pepper to the same pan and cook until just soft, then add the minced garlic.",
+        "temperature": "Medium heat",
+        "duration": "3-4 min, then 30 sec"
+      },
+      {
+        "order": 5,
+        "instruction_text": "Pour in the broth and scrape up the browned bits, then add the cream and the remaining Cajun seasoning. Simmer until slightly thickened.",
+        "temperature": "Medium-low heat",
+        "duration": "3-4 min"
+      },
+      {
+        "order": 6,
+        "instruction_text": "Stir in the grated parmesan until melted, then add the pasta and chicken and toss to coat.",
+        "notes": "Cajun blends vary a lot in salt; taste before adding any."
+      }
+    ],
+    "alternates": [
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Chicken breast",
+        "alternate_value": "1 lb peeled shrimp",
+        "notes": "Sear 1-2 min per side; it cooks much faster than chicken."
+      },
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Heavy cream",
+        "alternate_value": "1 cup half-and-half plus 2 oz cream cheese",
+        "notes": "Lighter but still won't split when it simmers."
+      }
+    ]
+  },
+  {
+    "title": "Garlic Butter Shrimp Spaghetti",
+    "source_type": "manual",
+    "cook_methods": [
+      "stovetop"
+    ],
+    "prep_time": 10,
+    "cook_time": 15,
+    "servings": 3,
+    "tags": [
+      "italian-american",
+      "pasta",
+      "seafood",
+      "high-protein",
+      "quick"
+    ],
+    "ingredients": [
+      {
+        "name": "large shrimp, peeled and deveined",
+        "quantity": 1,
+        "unit": "lb",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "butter",
+        "quantity": 4,
+        "unit": "tbsp",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "garlic cloves",
+        "quantity": 5,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "lemon",
+        "quantity": 1,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "parmesan",
+        "quantity": 0.25,
+        "unit": "cup",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "fresh parsley",
+        "quantity": 2,
+        "unit": "tbsp",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "salt",
+        "quantity": 0.5,
+        "unit": "tsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "red pepper flakes",
+        "quantity": 0.25,
+        "unit": "tsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "spaghetti",
+        "quantity": 8,
+        "unit": "oz",
+        "category": "pantry_dry_good"
+      }
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "instruction_text": "Boil the spaghetti in well-salted water until al dente. Scoop out half a cup of the pasta water before draining.",
+        "duration": "9-11 min"
+      },
+      {
+        "order": 2,
+        "instruction_text": "While it cooks, pat the shrimp dry and season with the salt."
+      },
+      {
+        "order": 3,
+        "instruction_text": "Melt 2 tablespoons of the butter in a large skillet and cook the shrimp until pink, then move them to a plate.",
+        "temperature": "Medium-high heat",
+        "duration": "1-2 min per side",
+        "notes": "Pull them as soon as they curl into a C; an O means overcooked."
+      },
+      {
+        "order": 4,
+        "instruction_text": "Add the remaining butter, the thinly sliced garlic and the red pepper flakes and cook until the garlic is just golden.",
+        "temperature": "Medium heat",
+        "duration": "1 min"
+      },
+      {
+        "order": 5,
+        "instruction_text": "Add the spaghetti, lemon juice and zest and a splash of pasta water and toss until glossy, adding more water if it looks dry."
+      },
+      {
+        "order": 6,
+        "instruction_text": "Toss the shrimp back in with the grated parmesan and chopped parsley and serve."
+      }
+    ],
+    "alternates": [
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Shrimp",
+        "alternate_value": "1 lb chicken breast, diced",
+        "notes": "Cook 6-7 min until 165°F before building the sauce."
+      },
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Spaghetti",
+        "alternate_value": "Linguine or angel hair",
+        "notes": "Angel hair cooks in about 4 min."
+      }
+    ]
+  },
+  {
+    "title": "Turkey Taco Rice Bowls",
+    "source_type": "manual",
+    "cook_methods": [
+      "stovetop"
+    ],
+    "prep_time": 10,
+    "cook_time": 20,
+    "servings": 4,
+    "tags": [
+      "tex-mex",
+      "high-protein",
+      "meal-prep",
+      "gluten-free"
+    ],
+    "ingredients": [
+      {
+        "name": "ground turkey (93% lean)",
+        "quantity": 1,
+        "unit": "lb",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "romaine lettuce",
+        "quantity": 2,
+        "unit": "cup",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "shredded Mexican-blend cheese",
+        "quantity": 0.5,
+        "unit": "cup",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "plain Greek yogurt",
+        "quantity": 0.5,
+        "unit": "cup",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "taco seasoning",
+        "quantity": 2,
+        "unit": "tbsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "salsa",
+        "quantity": 1,
+        "unit": "cup",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "lime",
+        "quantity": 1,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "white rice",
+        "quantity": 1,
+        "unit": "cup",
+        "category": "pantry_dry_good"
+      },
+      {
+        "name": "canned black beans",
+        "quantity": 15,
+        "unit": "oz",
+        "category": "pantry_dry_good"
+      },
+      {
+        "name": "vegetable oil",
+        "quantity": 1,
+        "unit": "tsp",
+        "category": "pantry_dry_good"
+      }
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "instruction_text": "Cook the rice according to the package."
+      },
+      {
+        "order": 2,
+        "instruction_text": "Heat the oil in a skillet and brown the turkey, breaking it up as it cooks.",
+        "temperature": "Medium-high heat",
+        "duration": "6-8 min",
+        "notes": "Done at 165°F with no pink left."
+      },
+      {
+        "order": 3,
+        "instruction_text": "Stir in the taco seasoning and 1/4 cup water and simmer until the liquid is mostly gone.",
+        "temperature": "Medium heat",
+        "duration": "3-4 min"
+      },
+      {
+        "order": 4,
+        "instruction_text": "Drain and rinse the black beans, add them to the pan and warm through.",
+        "duration": "2 min"
+      },
+      {
+        "order": 5,
+        "instruction_text": "Stir 1 tablespoon of lime juice into the Greek yogurt for a quick crema."
+      },
+      {
+        "order": 6,
+        "instruction_text": "Build bowls: rice, turkey and beans, shredded lettuce, salsa, cheese and a spoonful of the yogurt crema.",
+        "notes": "Keeps 4 days in the fridge; store the lettuce and crema separately."
+      }
+    ],
+    "alternates": [
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Ground turkey",
+        "alternate_value": "90/10 ground beef",
+        "notes": "Drain the fat before adding the seasoning."
+      },
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Greek yogurt",
+        "alternate_value": "Sour cream",
+        "notes": "Less protein, more classic taste."
+      }
+    ]
+  },
+  {
+    "title": "Spicy Peanut Ramen",
+    "source_type": "manual",
+    "cook_methods": [
+      "stovetop"
+    ],
+    "prep_time": 5,
+    "cook_time": 10,
+    "servings": 2,
+    "tags": [
+      "asian-inspired",
+      "ramen",
+      "noodles",
+      "quick",
+      "budget",
+      "vegetarian"
+    ],
+    "ingredients": [
+      {
+        "name": "eggs",
+        "quantity": 2,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "garlic cloves",
+        "quantity": 1,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "green onions",
+        "quantity": 2,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "soy sauce",
+        "quantity": 1,
+        "unit": "tbsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "sriracha",
+        "quantity": 1,
+        "unit": "tbsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "honey",
+        "quantity": 1,
+        "unit": "tsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "toasted sesame oil",
+        "quantity": 1,
+        "unit": "tsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "instant ramen (3 oz packs)",
+        "quantity": 2,
+        "unit": null,
+        "category": "pantry_dry_good"
+      },
+      {
+        "name": "creamy peanut butter",
+        "quantity": 2,
+        "unit": "tbsp",
+        "category": "pantry_dry_good"
+      }
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "instruction_text": "Bring a pot of water to a boil, lower in the eggs and cook, then move them to cold water.",
+        "temperature": "Boiling",
+        "duration": "6.5 min",
+        "notes": "6.5 minutes gives a jammy yolk."
+      },
+      {
+        "order": 2,
+        "instruction_text": "In a large bowl, whisk the peanut butter, soy sauce, sriracha, honey, sesame oil and grated garlic."
+      },
+      {
+        "order": 3,
+        "instruction_text": "Cook the noodles in the same water (discard the seasoning packets). Scoop out 1/4 cup of the water, then drain.",
+        "temperature": "Boiling",
+        "duration": "3 min"
+      },
+      {
+        "order": 4,
+        "instruction_text": "Whisk the noodle water into the sauce until smooth, then toss the noodles in it."
+      },
+      {
+        "order": 5,
+        "instruction_text": "Peel and halve the eggs and serve on top with sliced green onions."
+      }
+    ],
+    "alternates": [
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Peanut butter",
+        "alternate_value": "Tahini or sunflower seed butter",
+        "notes": "Sunflower butter keeps it nut-free."
+      },
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Soft-boiled eggs",
+        "alternate_value": "Leftover shredded chicken or pan-fried tofu",
+        "notes": "Makes it a heartier, higher-protein bowl."
+      }
+    ]
+  },
+  {
+    "title": "Cheesy Garlic Butter Egg Ramen",
+    "source_type": "manual",
+    "cook_methods": [
+      "stovetop"
+    ],
+    "prep_time": 2,
+    "cook_time": 8,
+    "servings": 1,
+    "tags": [
+      "korean-inspired",
+      "ramen",
+      "noodles",
+      "quick",
+      "budget",
+      "vegetarian"
+    ],
+    "ingredients": [
+      {
+        "name": "butter",
+        "quantity": 1,
+        "unit": "tbsp",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "garlic cloves",
+        "quantity": 2,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "eggs",
+        "quantity": 1,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "American cheese slice",
+        "quantity": 1,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "green onions",
+        "quantity": 1,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "red pepper flakes",
+        "quantity": 0.25,
+        "unit": "tsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "instant ramen (3 oz packs)",
+        "quantity": 1,
+        "unit": null,
+        "category": "pantry_dry_good"
+      }
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "instruction_text": "Melt the butter in a small saucepan and cook the minced garlic until fragrant.",
+        "temperature": "Medium heat",
+        "duration": "30-60 sec"
+      },
+      {
+        "order": 2,
+        "instruction_text": "Add 1 cup of water and half the seasoning packet and bring to a boil.",
+        "temperature": "High heat"
+      },
+      {
+        "order": 3,
+        "instruction_text": "Add the noodles and cook until they start to loosen.",
+        "duration": "2 min"
+      },
+      {
+        "order": 4,
+        "instruction_text": "Lower the heat, push the noodles aside and crack in the egg. Cover and let it set to your liking.",
+        "temperature": "Low heat",
+        "duration": "1-2 min",
+        "notes": "Or whisk it in for a silky, egg-drop broth."
+      },
+      {
+        "order": 5,
+        "instruction_text": "Turn off the heat, lay the cheese on top and cover for 30 seconds to melt. Stir it into the broth, then top with sliced green onion and red pepper flakes or chili oil if you like heat."
+      }
+    ],
+    "alternates": [
+      {
+        "type": "ingredient_substitute",
+        "original_value": "American cheese",
+        "alternate_value": "Mozzarella or a spoonful of cream cheese",
+        "notes": "Mozzarella gets stretchy; cream cheese makes the broth creamy."
+      },
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Half the seasoning packet",
+        "alternate_value": "1 tsp soy sauce plus 1/2 tsp sugar",
+        "notes": "Much less sodium."
+      }
+    ]
+  },
+  {
+    "title": "Beef and Broccoli Ramen Stir-Fry",
+    "source_type": "manual",
+    "cook_methods": [
+      "stovetop"
+    ],
+    "prep_time": 15,
+    "cook_time": 15,
+    "servings": 4,
+    "tags": [
+      "asian-inspired",
+      "ramen",
+      "noodles",
+      "steak",
+      "high-protein"
+    ],
+    "ingredients": [
+      {
+        "name": "sirloin steak",
+        "quantity": 1,
+        "unit": "lb",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "broccoli florets",
+        "quantity": 3,
+        "unit": "cup",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "garlic cloves",
+        "quantity": 3,
+        "unit": null,
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "fresh ginger",
+        "quantity": 1,
+        "unit": "tsp",
+        "category": "raw_ingredient"
+      },
+      {
+        "name": "soy sauce",
+        "quantity": 5,
+        "unit": "tbsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "brown sugar",
+        "quantity": 2,
+        "unit": "tbsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "oyster sauce",
+        "quantity": 1,
+        "unit": "tbsp",
+        "category": "spice_sauce"
+      },
+      {
+        "name": "instant ramen (3 oz packs)",
+        "quantity": 3,
+        "unit": null,
+        "category": "pantry_dry_good"
+      },
+      {
+        "name": "cornstarch",
+        "quantity": 1,
+        "unit": "tbsp",
+        "category": "pantry_dry_good"
+      },
+      {
+        "name": "vegetable oil",
+        "quantity": 2,
+        "unit": "tbsp",
+        "category": "pantry_dry_good"
+      }
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "instruction_text": "Slice the steak thinly against the grain, then toss it with the cornstarch until lightly coated.",
+        "notes": "Partly freezing the steak for 20 minutes makes thin slicing easy."
+      },
+      {
+        "order": 2,
+        "instruction_text": "Whisk the soy sauce, brown sugar, oyster sauce, minced garlic, grated ginger and 1/2 cup water together for the sauce."
+      },
+      {
+        "order": 3,
+        "instruction_text": "Cook the noodles in boiling water (discard the seasoning packets) until just loosened, then drain and rinse with cold water.",
+        "temperature": "Boiling",
+        "duration": "2 min",
+        "notes": "Slightly undercooked; they finish in the sauce."
+      },
+      {
+        "order": 4,
+        "instruction_text": "Heat 1 tablespoon of the oil in a large skillet or wok and sear the beef in a single layer until browned. Move to a plate.",
+        "temperature": "High heat",
+        "duration": "1-2 min per side"
+      },
+      {
+        "order": 5,
+        "instruction_text": "Add the remaining oil and the broccoli with a splash of water. Cover and steam-fry until bright green and crisp-tender.",
+        "temperature": "Medium-high heat",
+        "duration": "3-4 min"
+      },
+      {
+        "order": 6,
+        "instruction_text": "Pour in the sauce, add the noodles and beef, and toss until the sauce thickens and coats everything.",
+        "duration": "1-2 min"
+      }
+    ],
+    "alternates": [
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Sirloin steak",
+        "alternate_value": "Flank steak",
+        "notes": "Classic for beef and broccoli; slice it thin against the grain."
+      },
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Sirloin steak",
+        "alternate_value": "Chicken thighs, thinly sliced",
+        "notes": "Cook until no pink remains, about 5-6 min."
+      },
+      {
+        "type": "ingredient_substitute",
+        "original_value": "Instant ramen",
+        "alternate_value": "Fresh lo mein or yakisoba noodles",
+        "notes": "Usually in the refrigerated section; skip the boil and just warm them in the pan."
+      }
+    ]
+  }
+]
