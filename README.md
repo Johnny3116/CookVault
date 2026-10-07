@@ -247,6 +247,23 @@ the same row at both, rather than copying it somewhere it can drift. That is
 also why a promoted draft can't be deleted — deleting it would cascade the
 recipe's provenance away.
 
+### Starter recipes
+
+`backend/seed/starter_recipes.json` holds nine simple weeknight recipes: steak,
+salmon, chicken, two pastas, a high-protein bowl and three ramen. They're for
+stocking a fresh library. The seed script files them as **drafts**, so they wait
+in the review queue like anything else:
+
+```bash
+docker compose exec backend python scripts/seed_starter_recipes.py
+```
+
+It's safe to re-run. Any title already saved, or still waiting as a draft, is
+skipped. Each new draft is validated straight away, so it shows up as `ready`.
+Ingredient names are kept to the thing you buy ("garlic cloves", not "garlic
+cloves, minced"), because the shopping list merges on name. A test enforces
+that.
+
 ## Aisles, history, pantry and backups
 
 **Aisle is a different axis from ingredient category.** Category is what a
@@ -437,6 +454,8 @@ backend/
                          recipe-text parsing, web import, aisles, backup,
                          recipe search, meal planning
   alembic/versions/      Migrations (0001 initial ... 0011 video import)
+  seed/                  Starter recipe set (JSON, RecipeCreate-shaped)
+  scripts/               seed_starter_recipes.py — files the set as drafts
   docker-entrypoint.sh   Runs migrations, then uvicorn
 frontend/
   app/
